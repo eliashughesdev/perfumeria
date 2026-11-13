@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>L'Essence POS - Sistema Integral para Perfumería</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                    },
+                    colors: {
+                        plum: {
+                            50: '#fbf8fc',
+                            100: '#f5eef8',
+                            200: '#ebd9f2',
+                            500: '#7e3af2',
+                            800: '#3b1c4a',
+                            900: '#271033',
+                            950: '#190822',
+                        },
+                        gold: {
+                            100: '#fbf6e9',
+                            200: '#f5e6c4',
+                            400: '#d4af37',
+                            500: '#b89225',
+                            600: '#967418',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for sleek POS feel */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); }
+
+        /* ESTILOS DE IMPRESIÓN (TICKET TÉRMICO 80MM / FACTURA) */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-invoice-area, #printable-invoice-area * {
+                visibility: visible;
+            }
+            #printable-invoice-area {
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 80mm; /* Ancho estándar impresora térmica POS */
+                margin: 0;
+                padding: 4mm;
+                background: #ffffff !important;
+                color: #000000 !important;
+                box-shadow: none !important;
+                border: none !important;
+                font-family: 'Courier New', Courier, monospace !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased overflow-hidden h-screen flex flex-col">
+
+    <!-- TOAST NOTIFICATION BANNER -->
+    <div id="toast-notification" class="fixed top-20 right-5 z-[60] transform translate-x-[150%] transition-transform duration-300 bg-plum-950 text-white px-4 py-3 rounded-xl shadow-2xl border border-gold-400/40 flex items-center gap-3 text-xs max-w-sm no-print">
+        <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400 shrink-0"></i>
+        <span id="toast-message">Operación realizada con éxito</span>
+    </div>
+
+    <!-- TOP BAR (Header & RBAC Role Switcher) -->
+    <header class="bg-plum-950 text-white h-16 px-4 lg:px-6 flex items-center justify-between shrink-0 border-b border-plum-800 shadow-md z-20">
+        <div class="flex items-center gap-3">
+            <button id="mobile-menu-btn" onclick="toggleMobileMenu()" class="lg:hidden p-2 rounded-lg hover:bg-plum-800 text-gold-400">
+                <i data-lucide="menu" class="w-6 h-6"></i>
+            </button>
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-plum-950 shadow-inner">
+                <i data-lucide="sparkles" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="font-serif text-lg lg:text-xl font-bold tracking-wide text-gold-200 leading-none">L'ESSENCE</h1>
+                <span class="text-[11px] text-plum-200 uppercase tracking-widest">Perfumería & Boutique</span>
+            </div>
+        </div>
+
+        <!-- Status & RBAC Role Simulator -->
+        <div class="flex items-center gap-3 lg:gap-5">
+            <!-- Cash Register Status Pill -->
+            <div id="register-status-badge" onclick="switchView('caja')" class="cursor-pointer hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium hover:bg-emerald-500/25 transition">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Caja Abierta ($150.00)</span>
+            </div>
+
+            <!-- Role Switcher (Demo RBAC) -->
+            <div class="flex items-center bg-plum-900 border border-plum-800 rounded-xl p-1 text-xs">
+                <span class="hidden md:inline text-plum-200 px-2">Rol RBAC:</span>
+                <button onclick="setRole('admin')" id="btn-role-admin" class="px-2.5 py-1 rounded-lg font-semibold transition bg-gold-400 text-plum-950 shadow">
+                    Admin
+                </button>
+                <button onclick="setRole('cajero')" id="btn-role-cajero" class="px-2.5 py-1 rounded-lg font-semibold transition text-plum-200 hover:text-white">
+                    Cajero
+                </button>
+            </div>
+
+            <!-- User Profile -->
+            <div class="flex items-center gap-2.5 pl-2 border-l border-plum-800">
+                <div class="w-8 h-8 rounded-full bg-plum-800 border border-gold-400/50 flex items-center justify-center text-gold-300 font-bold text-xs" id="user-avatar">
+                    AG
+                </div>
+                <div class="hidden md:block text-left leading-tight">
+                    <p class="text-xs font-semibold text-white" id="user-name">Ana Gómez</p>
+                    <p class="text-[11px] text-gold-400" id="user-role-label">Administradora</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- SIDEBAR NAVIGATION -->
+        <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-30 w-64 lg:w-20 xl:w-56 bg-white border-r border-slate-200 flex flex-col justify-between transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-in-out shadow-xl lg:shadow-none">
+            <nav class="p-3 space-y-1.5 mt-14 lg:mt-2">
+                <button onclick="switchView('pos')" data-nav="pos" class="nav-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition bg-plum-900 text-white shadow-sm">
+                    <i data-lucide="shopping-bag" class="w-5 h-5 shrink-0 text-gold-400"></i>
+                    <span class="lg:hidden xl:inline">Punto de Venta</span>
+                </button>
+
+                <button onclick="switchView('caja')" data-nav="caja" class="nav-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    <i data-lucide="wallet" class="w-5 h-5 shrink-0"></i>
+                    <span class="lg:hidden xl:inline">Control de Caja</span>
+                </button>
+
+                <button onclick="switchView('inventario')" data-nav="inventario" class="nav-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    <i data-lucide="package" class="w-5 h-5 shrink-0"></i>
+                    <span class="lg:hidden xl:inline">Inventario</span>
+                    <span id="low-stock-badge" class="ml-auto lg:hidden xl:inline-flex px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full">2</span>
+                </button>
+
+                <button onclick="switchView('contabilidad')" data-nav="contabilidad" id="nav-contabilidad" class="nav-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5 shrink-0"></i>
+                    <span class="lg:hidden xl:inline">Contabilidad</span>
+                </button>
+
+                <button onclick="switchView('usuarios')" data-nav="usuarios" id="nav-usuarios" class="nav-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    <i data-lucide="shield-check" class="w-5 h-5 shrink-0"></i>
+                    <span class="lg:hidden xl:inline">Usuarios & RBAC</span>
+                </button>
+            </nav>
+
+            <!-- Security / JWT Session Footer -->
+            <div class="p-3 border-t border-slate-100">
+                <div class="bg-slate-50 rounded-xl p-3 border border-slate-200/70 lg:hidden xl:block">
+                    <div class="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
+                        <i data-lucide="lock" class="w-3.5 h-3.5 text-emerald-600"></i>
+                        <span>Sesión JWT Activa</span>
+                    </div>
+                    <p class="text-[11px] text-slate-500">Conexión cifrada TLS • Sincronización en tiempo real</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- OVERLAY FOR MOBILE SIDEBAR -->
+        <div id="sidebar-overlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-slate-900/50 z-20 hidden lg:hidden"></div>
+
+        <!-- CONTENT VIEWS CONTAINER -->
+        <main class="flex-1 overflow-hidden flex flex-col relative">
+
+            <!-- ========================================== -->
+            <!-- VIEW 1: PUNTO DE VENTA (POS)               -->
+            <!-- ========================================== -->
+            <section id="view-pos" class="view-section flex-1 flex flex-col lg:flex-row overflow-hidden">
+                
+                <!-- Left: Catalog & Filters -->
+                <div class="flex-1 flex flex-col overflow-hidden p-4 lg:p-5">
+                    <!-- Search & Categories Header -->
+                    <div class="flex flex-col sm:flex-row gap-3 mb-4 shrink-0">
+                        <div class="relative flex-1">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="pos-search" oninput="renderProducts()" placeholder="Buscar perfume, marca o escanear código de barras..." 
+                                class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-plum-800 shadow-sm">
+                        </div>
+                        <div class="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0" id="category-filters">
+                            <button onclick="setCategory('Todos')" class="cat-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-plum-900 text-white whitespace-nowrap shadow-sm">Todos</button>
+                            <button onclick="setCategory('Damas')" class="cat-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 whitespace-nowrap">Damas</button>
+                            <button onclick="setCategory('Caballeros')" class="cat-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 whitespace-nowrap">Caballeros</button>
+                            <button onclick="setCategory('Unisex')" class="cat-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 whitespace-nowrap">Unisex</button>
+                            <button onclick="setCategory('Nicho')" class="cat-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 whitespace-nowrap">Árabes / Nicho</button>
+                        </div>
+                    </div>
+
+                    <!-- Product Grid -->
+                    <div id="pos-product-grid" class="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3.5 pr-1 pb-20 lg:pb-4 content-start">
+                        <!-- Rendered via JS -->
+                    </div>
+                </div>
+
+                <!-- Right: Cart / Ticket Panel (Desktop Fixed, Mobile Drawer) -->
+                <div id="pos-cart-panel" class="fixed lg:static inset-x-0 bottom-0 z-20 lg:w-96 bg-white border-t lg:border-t-0 lg:border-l border-slate-200 flex flex-col shadow-2xl lg:shadow-none max-h-[85vh] lg:max-h-full transition-transform duration-300">
+                    
+                    <!-- Mobile Cart Toggle Bar -->
+                    <div onclick="toggleMobileCart()" class="lg:hidden bg-plum-900 text-white px-4 py-3 flex items-center justify-between cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="shopping-cart" class="w-5 h-5 text-gold-400"></i>
+                            <span class="font-semibold text-sm">Ver Ticket Actual (<span id="mobile-cart-count">0</span>)</span>
+                        </div>
+                        <span class="font-bold text-gold-300" id="mobile-cart-total">$0.00</span>
+                    </div>
+
+                    <!-- Cart Header -->
+                    <div class="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                        <div>
+                            <h2 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                <i data-lucide="receipt" class="w-4 h-4 text-plum-800"></i>
+                                Orden #<span id="current-order-number">0042</span>
+                            </h2>
+                            <input type="text" id="pos-client-name" placeholder="Cliente: Consumidor Final (Opcional)" 
+                                class="mt-1 text-[11px] bg-white border border-slate-200 rounded px-2 py-0.5 text-slate-700 w-48 focus:outline-none focus:border-plum-800">
+                        </div>
+                        <button onclick="clearCart()" class="text-xs text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Vaciar
+                        </button>
+                    </div>
+
+                    <!-- Cart Items List -->
+                    <div id="cart-items-container" class="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-[180px]">
+                        <!-- Rendered via JS -->
+                    </div>
+
+                    <!-- Cart Summary & Checkout -->
+                    <div class="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+                        <div class="space-y-1.5 text-xs">
+                            <div class="flex justify-between text-slate-500">
+                                <span>Subtotal</span>
+                                <span id="cart-subtotal" class="font-medium text-slate-700">$0.00</span>
+                            </div>
+                            <div class="flex justify-between text-slate-500">
+                                <span>ITBIS / IVA (18%)</span>
+                                <span id="cart-tax" class="font-medium text-slate-700">$0.00</span>
+                            </div>
+                            <div class="flex justify-between items-center text-slate-600 pt-1">
+                                <span>Descuento (%)</span>
+                                <input type="number" id="cart-discount" value="0" min="0" max="50" onchange="updateCartUI()" 
+                                    class="w-16 text-right px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold">
+                            </div>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-200 flex items-baseline justify-between">
+                            <span class="text-sm font-bold text-slate-800">TOTAL A PAGAR</span>
+                            <span id="cart-total" class="text-2xl font-bold text-plum-900">$0.00</span>
+                        </div>
+
+                        <button onclick="openCheckoutModal()" id="btn-checkout" disabled
+                            class="w-full py-3.5 px-4 rounded-xl bg-plum-900 hover:bg-plum-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-sm shadow-lg shadow-plum-900/20 flex items-center justify-center gap-2 transition">
+                            <i data-lucide="credit-card" class="w-4 h-4 text-gold-400"></i>
+                            <span>Procesar Cobro</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 2: CONTROL DE CAJA (ARQUEO)           -->
+            <!-- ========================================== -->
+            <section id="view-caja" class="view-section hidden flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800">Control de Caja y Turnos</h2>
+                        <p class="text-xs text-slate-500">Gestión de apertura, movimientos en efectivo y arqueo diario</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="registerCashMovement('ingreso')" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i> Entrada Efectivo
+                        </button>
+                        <button onclick="registerCashMovement('egreso')" class="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                            <i data-lucide="minus-circle" class="w-4 h-4"></i> Salida / Gasto
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Cash KPI Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <span class="text-xs font-medium text-slate-500">Fondo Inicial (Apertura)</span>
+                        <p class="text-2xl font-bold text-slate-800 mt-1" id="cash-initial">$150.00</p>
+                        <span class="text-[11px] text-slate-400 mt-1 block">Turno iniciado: 08:30 AM</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <span class="text-xs font-medium text-slate-500">Ventas en Efectivo</span>
+                        <p class="text-2xl font-bold text-emerald-600 mt-1" id="cash-sales-efectivo">$345.00</p>
+                        <span class="text-[11px] text-emerald-600 mt-1 block">+5 tickets cobrados</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <span class="text-xs font-medium text-slate-500">Ventas Tarjeta / Transf.</span>
+                        <p class="text-2xl font-bold text-indigo-600 mt-1" id="cash-sales-tarjeta">$520.00</p>
+                        <span class="text-[11px] text-slate-400 mt-1 block">No ingresa a gaveta física</span>
+                    </div>
+                    <div class="bg-plum-900 text-white p-4 rounded-2xl shadow-md">
+                        <span class="text-xs font-medium text-plum-200">Efectivo Esperado en Gaveta</span>
+                        <p class="text-2xl font-bold text-gold-400 mt-1" id="cash-expected">$495.00</p>
+                        <span class="text-[11px] text-plum-200 mt-1 block">Base + Efectivo + Movimientos</span>
+                    </div>
+                </div>
+
+                <!-- Movements Table -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <h3 class="font-bold text-sm text-slate-800">Movimientos del Turno Actual</h3>
+                        <button onclick="showToast('Arqueo de caja generado e impreso en ticket térmico.')" class="text-xs font-semibold text-plum-800 hover:underline">
+                            Cerrar Turno y Realizar Arqueo →
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 text-slate-500 uppercase font-semibold border-b border-slate-100">
+                                <tr>
+                                    <th class="px-5 py-3">Hora</th>
+                                    <th class="px-5 py-3">Concepto</th>
+                                    <th class="px-5 py-3">Método</th>
+                                    <th class="px-5 py-3">Usuario</th>
+                                    <th class="px-5 py-3 text-right">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cash-movements-list" class="divide-y divide-slate-100">
+                                <tr>
+                                    <td class="px-5 py-3 text-slate-500">08:30 AM</td>
+                                    <td class="px-5 py-3 font-medium">Apertura de Caja</td>
+                                    <td class="px-5 py-3"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600">Base</span></td>
+                                    <td class="px-5 py-3">Ana Gómez</td>
+                                    <td class="px-5 py-3 text-right font-bold text-slate-700">$150.00</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-5 py-3 text-slate-500">10:15 AM</td>
+                                    <td class="px-5 py-3 font-medium">Venta Ticket #0040</td>
+                                    <td class="px-5 py-3"><span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">Efectivo</span></td>
+                                    <td class="px-5 py-3">Ana Gómez</td>
+                                    <td class="px-5 py-3 text-right font-bold text-emerald-600">+$210.00</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-5 py-3 text-slate-500">11:40 AM</td>
+                                    <td class="px-5 py-3 font-medium">Venta Ticket #0041</td>
+                                    <td class="px-5 py-3"><span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700">Tarjeta</span></td>
+                                    <td class="px-5 py-3">Ana Gómez</td>
+                                    <td class="px-5 py-3 text-right font-bold text-indigo-600">+$520.00</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-5 py-3 text-slate-500">01:10 PM</td>
+                                    <td class="px-5 py-3 font-medium">Venta Ticket #0039</td>
+                                    <td class="px-5 py-3"><span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">Efectivo</span></td>
+                                    <td class="px-5 py-3">Ana Gómez</td>
+                                    <td class="px-5 py-3 text-right font-bold text-emerald-600">+$135.00</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 3: INVENTARIO DE PERFUMES             -->
+            <!-- ========================================== -->
+            <section id="view-inventario" class="view-section hidden flex-1 overflow-y-auto p-4 lg:p-6 space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800">Inventario de Fragancias</h2>
+                        <p class="text-xs text-slate-500">Control de existencias, costos, precios de venta y alertas de reposición</p>
+                    </div>
+                    <button onclick="openNewProductModal()" id="btn-add-product" class="px-4 py-2.5 rounded-xl bg-plum-900 hover:bg-plum-800 text-white text-xs font-semibold flex items-center gap-2 shadow-sm self-start">
+                        <i data-lucide="plus" class="w-4 h-4 text-gold-400"></i> Nuevo Perfume
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 text-slate-500 uppercase font-semibold border-b border-slate-100">
+                                <tr>
+                                    <th class="px-5 py-3.5">Producto</th>
+                                    <th class="px-5 py-3.5">Categoría</th>
+                                    <th class="px-5 py-3.5">SKU / Código</th>
+                                    <th class="px-5 py-3.5 admin-only-col">Costo</th>
+                                    <th class="px-5 py-3.5">Precio Venta</th>
+                                    <th class="px-5 py-3.5">Stock Actual</th>
+                                    <th class="px-5 py-3.5 text-right">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-table-body" class="divide-y divide-slate-100">
+                                <!-- Rendered via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 4: CONTABILIDAD BÁSICA (ADMIN ONLY)   -->
+            <!-- ========================================== -->
+            <section id="view-contabilidad" class="view-section hidden flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">Contabilidad Básica y Rentabilidad</h2>
+                    <p class="text-xs text-slate-500">Resumen financiero del mes: Ingresos brutos, costo de mercancía vendida y utilidad neta</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-500">Ingresos Totales (Mes)</span>
+                            <span class="p-2 rounded-lg bg-emerald-50 text-emerald-600"><i data-lucide="trending-up" class="w-4 h-4"></i></span>
+                        </div>
+                        <p class="text-2xl font-bold text-slate-800 mt-2">$14,850.00</p>
+                        <p class="text-xs text-emerald-600 mt-1 font-medium">+18.4% respecto al mes anterior</p>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-500">Costo de Mercancía + Gastos</span>
+                            <span class="p-2 rounded-lg bg-rose-50 text-rose-600"><i data-lucide="trending-down" class="w-4 h-4"></i></span>
+                        </div>
+                        <p class="text-2xl font-bold text-slate-800 mt-2">$8,420.00</p>
+                        <p class="text-xs text-slate-400 mt-1">Reposición proveedores y operativos</p>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-plum-900 to-plum-950 text-white p-5 rounded-2xl shadow-md">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-gold-300">Utilidad Neta Estimada</span>
+                            <span class="p-2 rounded-lg bg-white/10 text-gold-400"><i data-lucide="award" class="w-4 h-4"></i></span>
+                        </div>
+                        <p class="text-2xl font-bold text-white mt-2">$6,430.00</p>
+                        <p class="text-xs text-plum-200 mt-1">Margen de ganancia promedio: 43.3%</p>
+                    </div>
+                </div>
+
+                <!-- Visual Bar Chart Simulation -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 class="font-bold text-sm text-slate-800 mb-4">Ventas vs. Costos (Últimos 6 meses)</h3>
+                    <div class="grid grid-cols-6 gap-3 h-48 items-end pt-6 px-2 border-b border-slate-100">
+                        <div class="flex flex-col items-center gap-1 h-full justify-end">
+                            <div class="w-full max-w-[36px] bg-plum-800 rounded-t-md h-[55%]"></div>
+                            <span class="text-[11px] text-slate-500">Jun</span>
+                        </div>
+                        <div class="flex flex-col items-center gap-1 h-full justify-end">
+                            <div class="w-full max-w-[36px] bg-plum-800 rounded-t-md h-[68%]"></div>
+                            <span class="text-[11px] text-slate-500">Jul</span>
+                        </div>
+                        <div class="flex flex-col items-center gap-1 h-full justify-end">
+                            <div class="w-full max-w-[36px] bg-plum-800 rounded-t-md h-[62%]"></div>
+                            <span class="text-[11px] text-slate-500">Ago</span>
+                        </div>
+                        <div class="flex flex-col items-center gap-1 h-full justify-end">
+                            <div class="w-full max-w-[36px] bg-plum-800 rounded-t-md h-[75%]"></div>
+                            <span class="text-[11px] text-slate-500">Sep</span>
+                        </div>
+                        <div class="flex flex-col items-center gap-1 h-full justify-end">
+                            <div class="w-full max-w-[36px] bg-plum-800 rounded-t-md h-[82%]"></div>
+                            <span class="text-[11px] text-slate-500">Oct</span>
+                        </div>
+                        <div class="flex flex-col items-center gap-1 h-full justify-end">
+                            <div class="w-full max-w-[36px] bg-gold-400 rounded-t-md h-[95%] shadow"></div>
+                            <span class="text-[11px] font-bold text-plum-900">Nov</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========================================== -->
+            <!-- VIEW 5: USUARIOS Y PERMISOS RBAC           -->
+            <!-- ========================================== -->
+            <section id="view-usuarios" class="view-section hidden flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">Control de Usuarios y Seguridad RBAC</h2>
+                    <p class="text-xs text-slate-500">Administración de roles, tokens JWT y matriz de permisos del sistema</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Active Users -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                        <h3 class="font-bold text-sm text-slate-800">Personal Autorizado</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-9 h-9 rounded-full bg-plum-900 text-gold-400 flex items-center justify-center font-bold text-xs">AG</div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-800">Ana Gómez (Dueña)</p>
+                                        <p class="text-[11px] text-slate-500">ana@lessence.com</p>
+                                    </div>
+                                </div>
+                                <span class="px-2.5 py-1 rounded-lg bg-plum-100 text-plum-900 font-bold text-[11px]">ROLE_ADMIN</span>
+                            </div>
+
+                            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs">CM</div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-800">Carlos Méndez</p>
+                                        <p class="text-[11px] text-slate-500">caja1@lessence.com</p>
+                                    </div>
+                                </div>
+                                <span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 font-bold text-[11px]">ROLE_CAJERO</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RBAC Permission Matrix -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                        <h3 class="font-bold text-sm text-slate-800 mb-3">Matriz de Permisos (RBAC)</h3>
+                        <table class="w-full text-xs text-left">
+                            <thead class="text-slate-400 border-b border-slate-100">
+                                <tr>
+                                    <th class="py-2">Módulo / Acción</th>
+                                    <th class="py-2 text-center">Admin</th>
+                                    <th class="py-2 text-center">Cajero</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr>
+                                    <td class="py-2.5 font-medium">Facturar en POS</td>
+                                    <td class="py-2.5 text-center text-emerald-600 font-bold">✓</td>
+                                    <td class="py-2.5 text-center text-emerald-600 font-bold">✓</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2.5 font-medium">Apertura y Cierre de Caja</td>
+                                    <td class="py-2.5 text-center text-emerald-600 font-bold">✓</td>
+                                    <td class="py-2.5 text-center text-emerald-600 font-bold">✓</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2.5 font-medium">Ver Costos y Márgenes</td>
+                                    <td class="py-2.5 text-center text-emerald-600 font-bold">✓</td>
+                                    <td class="py-2.5 text-center text-rose-500 font-bold">✕</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2.5 font-medium">Crear / Eliminar Productos</td>
+                                    <td class="py-2.5 text-center text-emerald-600 font-bold">✓</td>
+                                    <td class="py-2.5 text-center text-rose-500 font-bold">✕</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2.5 font-medium">Contabilidad y Usuarios</td>
+                                    <td class="py-2.5 text-center text-emerald-600 font-bold">✓</td>
+                                    <td class="py-2.5 text-center text-rose-500 font-bold">✕</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL: COBRO Y FACTURACIÓN                 -->
+    <!-- ========================================== -->
+    <div id="checkout-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200">
+            <div class="bg-plum-900 text-white px-6 py-4 flex items-center justify-between">
+                <h3 class="font-bold text-base">Finalizar Facturación</h3>
+                <button onclick="closeCheckoutModal()" class="text-plum-200 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="bg-slate-50 p-4 rounded-xl text-center border border-slate-200">
+                    <span class="text-xs text-slate-500 uppercase font-semibold">Total a Cobrar</span>
+                    <p id="modal-total-amount" class="text-3xl font-bold text-plum-900 mt-1">$0.00</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-2">Método de Pago</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="selectPaymentMethod('Efectivo')" class="pay-method-btn py-2.5 px-3 rounded-xl border-2 border-plum-900 bg-plum-50 text-plum-900 font-bold text-xs flex flex-col items-center gap-1">
+                            <i data-lucide="banknote" class="w-4 h-4"></i> Efectivo
+                        </button>
+                        <button onclick="selectPaymentMethod('Tarjeta')" class="pay-method-btn py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs flex flex-col items-center gap-1">
+                            <i data-lucide="credit-card" class="w-4 h-4"></i> Tarjeta
+                        </button>
+                        <button onclick="selectPaymentMethod('Transferencia')" class="pay-method-btn py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs flex flex-col items-center gap-1">
+                            <i data-lucide="smartphone" class="w-4 h-4"></i> Transf.
+                        </button>
+                    </div>
+                </div>
+
+                <div id="cash-received-box">
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Efectivo Recibido ($)</label>
+                    <input type="number" id="cash-received-input" oninput="calculateChange()" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-plum-800">
+                    <div class="flex justify-between text-xs mt-2 font-semibold">
+                        <span class="text-slate-500">Cambio / Devuelta:</span>
+                        <span id="cash-change-amount" class="text-emerald-600 text-sm">$0.00</span>
+                    </div>
+                </div>
+
+                <button onclick="completeSale()" class="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-lg transition flex items-center justify-center gap-2">
+                    <i data-lucide="receipt" class="w-4 h-4"></i> Generar Factura y Vista Previa
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL: VISTA PREVIA DE FACTURA E IMPRESIÓN -->
+    <!-- ========================================== -->
+    <div id="invoice-preview-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-200 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-300 flex flex-col max-h-[92vh]">
+            <div class="bg-plum-950 text-white px-5 py-3.5 flex items-center justify-between shrink-0 no-print">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="printer" class="w-4 h-4 text-gold-400"></i>
+                    <h3 class="font-bold text-sm">Comprobante Fiscal / Ticket POS</h3>
+                </div>
+                <button onclick="closeInvoiceModal()" class="text-plum-200 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <!-- Scrollable Paper Ticket Area -->
+            <div class="p-5 overflow-y-auto flex-1 flex justify-center">
+                <div id="printable-invoice-area" class="bg-white w-full max-w-[340px] p-6 shadow-md border border-slate-300 text-slate-900 font-mono text-[11px] leading-relaxed">
+                    
+                    <!-- Datos de la Empresa -->
+                    <div class="text-center border-b border-dashed border-slate-400 pb-3 mb-3">
+                        <h2 class="font-bold text-base tracking-wider uppercase">L'ESSENCE PERFUMERÍA</h2>
+                        <p class="font-semibold">INVERSIONES AROMAS DEL CARIBE SRL</p>
+                        <p>RNC: 1-31-84920-5</p>
+                        <p>Av. Independencia #104, Local 2B</p>
+                        <p>San Pedro de Macorís, Rep. Dom.</p>
+                        <p>Tel: (809) 529-4410 | WhatsApp: (829) 555-0192</p>
+                        <p>IG: @lessenceperfumeria.rd</p>
+                    </div>
+
+                    <!-- Datos Fiscales y de la Factura -->
+                    <div class="border-b border-dashed border-slate-400 pb-2.5 mb-2.5 space-y-0.5">
+                        <div class="flex justify-between">
+                            <span class="font-bold">FACTURA N°:</span>
+                            <span id="inv-number">FAC-000042</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-bold">NCF:</span>
+                            <span>B0200000148</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>FECHA / HORA:</span>
+                            <span id="inv-date">--/--/---- --:--</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>CAJERO(A):</span>
+                            <span id="inv-cashier">Ana Gómez</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>CLIENTE:</span>
+                            <span id="inv-client" class="font-bold">CONSUMIDOR FINAL</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>MÉTODO PAGO:</span>
+                            <span id="inv-method" class="uppercase">EFECTIVO</span>
+                        </div>
+                    </div>
+
+                    <!-- Detalle de Productos -->
+                    <div class="border-b border-dashed border-slate-400 pb-2.5 mb-2.5">
+                        <div class="grid grid-cols-12 font-bold border-b border-slate-300 pb-1 mb-1.5 text-[10px]">
+                            <span class="col-span-2">CANT</span>
+                            <span class="col-span-6">DESCRIPCIÓN</span>
+                            <span class="col-span-4 text-right">IMPORTE</span>
+                        </div>
+                        <div id="inv-items-list" class="space-y-1.5">
+                            <!-- Items dinámicos -->
+                        </div>
+                    </div>
+
+                    <!-- Totales -->
+                    <div class="space-y-1 border-b border-dashed border-slate-400 pb-3 mb-3">
+                        <div class="flex justify-between">
+                            <span>SUBTOTAL:</span>
+                            <span id="inv-subtotal">$0.00</span>
+                        </div>
+                        <div class="flex justify-between" id="inv-discount-row">
+                            <span>DESCUENTO:</span>
+                            <span id="inv-discount">-$0.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>ITBIS (18%):</span>
+                            <span id="inv-tax">$0.00</span>
+                        </div>
+                        <div class="flex justify-between font-bold text-sm pt-1 border-t border-slate-300">
+                            <span>TOTAL PAGADO:</span>
+                            <span id="inv-total">$0.00</span>
+                        </div>
+                        <div class="flex justify-between pt-1" id="inv-cash-details">
+                            <span>RECIBIDO: <span id="inv-received">$0.00</span></span>
+                            <span>CAMBIO: <span id="inv-change">$0.00</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Pie de Factura y Política -->
+                    <div class="text-center text-[10px] space-y-1 text-slate-700">
+                        <p class="font-bold">¡GRACIAS POR PREFERIRNOS!</p>
+                        <p>Conserve este ticket para fines de garantía.</p>
+                        <p>No se aceptan devoluciones en perfumes destapados o sin su celofán original.</p>
+                        <div class="pt-2 flex flex-col items-center">
+                            <div class="h-7 w-44 bg-[repeating-linear-gradient(90deg,#000,#000_2px,#fff_2px,#fff_4px,#000_4px,#000_5px,#fff_5px,#fff_8px)]"></div>
+                            <span class="text-[9px] tracking-widest mt-1" id="inv-barcode-text">*FAC000042*</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="p-4 bg-white border-t border-slate-200 flex gap-3 shrink-0 no-print">
+                <button onclick="closeInvoiceModal()" class="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition">
+                    Nueva Venta
+                </button>
+                <button onclick="window.print()" class="flex-1 py-2.5 px-4 rounded-xl bg-plum-900 hover:bg-plum-800 text-white font-bold text-xs shadow-lg flex items-center justify-center gap-2 transition">
+                    <i data-lucide="printer" class="w-4 h-4 text-gold-400"></i> Imprimir Ticket
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL: DETALLE DEL PERFUME (CLICKEABLE)    -->
+    <!-- ========================================== -->
+    <div id="product-detail-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200">
+            <div class="bg-plum-950 text-white px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span id="detail-sku" class="px-2 py-0.5 rounded bg-gold-400/20 text-gold-300 font-mono text-[11px] font-bold">PRF-001</span>
+                    <span id="detail-category" class="text-xs text-plum-200 uppercase tracking-wider font-semibold">Damas</span>
+                </div>
+                <button onclick="closeProductDetailModal()" class="text-plum-200 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            
+            <div class="p-6 space-y-5">
+                <div class="flex flex-col sm:flex-row gap-5 items-center sm:items-start">
+                    <!-- Imagen o Frasco Visual -->
+                    <div id="detail-image-container" class="w-36 h-36 rounded-2xl shrink-0 overflow-hidden border border-slate-200 shadow-inner flex items-center justify-center bg-slate-50">
+                        <!-- Renderizado dinámico -->
+                    </div>
+
+                    <div class="flex-1 text-center sm:text-left space-y-2">
+                        <h3 id="detail-name" class="font-serif text-xl font-bold text-slate-900 leading-snug">Nombre del Perfume</h3>
+                        <p id="detail-description" class="text-xs text-slate-600 leading-relaxed">Descripción olfativa y presentación del producto.</p>
+                        
+                        <div class="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                            <div class="bg-plum-50 px-3 py-1.5 rounded-xl border border-plum-100">
+                                <span class="text-[10px] text-slate-500 block uppercase">Precio Venta</span>
+                                <span id="detail-price" class="text-base font-bold text-plum-900">$0.00</span>
+                            </div>
+                            <div class="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                                <span class="text-[10px] text-slate-500 block uppercase">Existencia</span>
+                                <span id="detail-stock" class="text-base font-bold text-slate-800">0 uds.</span>
+                            </div>
+                            <div id="detail-cost-box" class="bg-amber-50/70 px-3 py-1.5 rounded-xl border border-amber-200/70">
+                                <span class="text-[10px] text-amber-700 block uppercase">Costo (Admin)</span>
+                                <span id="detail-cost" class="text-base font-bold text-amber-900">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Edición rápida de descripción (Solo Admin) -->
+                <div id="detail-edit-desc-box" class="pt-3 border-t border-slate-100">
+                    <label class="text-[11px] font-bold text-slate-700 block mb-1">Editar Descripción / Notas Olfativas</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="detail-edit-desc-input" class="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-plum-800">
+                        <button onclick="saveProductDescription()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold transition">
+                            Actualizar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeProductDetailModal()" class="flex-1 py-3 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition">
+                        Cerrar
+                    </button>
+                    <button id="detail-add-cart-btn" class="flex-1 py-3 rounded-xl bg-plum-900 hover:bg-plum-800 text-white font-bold text-xs shadow-lg flex items-center justify-center gap-2 transition">
+                        <i data-lucide="shopping-bag" class="w-4 h-4 text-gold-400"></i> Agregar a la Factura
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL: NUEVO PERFUME (INVENTARIO)          -->
+    <!-- ========================================== -->
+    <div id="new-product-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl max-h-[92vh] flex flex-col">
+            <div class="bg-plum-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
+                <h3 class="font-bold text-base">Registrar Nueva Fragancia</h3>
+                <button onclick="closeNewProductModal()" class="text-plum-200 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="addNewProduct(event)" class="p-6 space-y-3.5 text-xs overflow-y-auto">
+                <!-- Carga de Fotografía del Perfume -->
+                <div>
+                    <label class="font-semibold text-slate-700 block mb-1.5">Fotografía del Perfume</label>
+                    <div class="flex items-center gap-3.5">
+                        <div id="np-photo-preview" class="w-20 h-20 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 overflow-hidden shrink-0">
+                            <i data-lucide="camera" class="w-6 h-6 mb-0.5"></i>
+                            <span class="text-[9px]">Vista previa</span>
+                        </div>
+                        <div class="flex-1 space-y-1.5">
+                            <label class="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-plum-50 text-plum-900 border border-plum-200 font-semibold hover:bg-plum-100 transition">
+                                <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                                <span>Seleccionar Imagen</span>
+                                <input type="file" id="np-photo-input" accept="image/*" onchange="previewNewProductPhoto(event)" class="hidden">
+                            </label>
+                            <p class="text-[10px] text-slate-400">Soporta JPG, PNG o WEBP. Ideal formato cuadrado.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="font-semibold text-slate-700 block mb-1">Nombre del Perfume</label>
+                    <input type="text" id="np-name" required placeholder="Ej. Baccarat Rouge 540 70ml" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-plum-800">
+                </div>
+
+                <div>
+                    <label class="font-semibold text-slate-700 block mb-1">Descripción y Notas Olfativas</label>
+                    <textarea id="np-description" rows="2" required placeholder="Ej. Notas de azafrán, jazmín, madera de cedro y ámbar gris. Alta duración." class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-plum-800"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-semibold text-slate-700 block mb-1">Categoría</label>
+                        <select id="np-cat" class="w-full px-3 py-2 border border-slate-300 rounded-xl">
+                            <option value="Damas">Damas</option>
+                            <option value="Caballeros">Caballeros</option>
+                            <option value="Unisex">Unisex</option>
+                            <option value="Nicho">Árabes / Nicho</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="font-semibold text-slate-700 block mb-1">Stock Inicial</label>
+                        <input type="number" id="np-stock" required value="10" min="1" class="w-full px-3 py-2 border border-slate-300 rounded-xl">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-semibold text-slate-700 block mb-1">Costo Compra ($)</label>
+                        <input type="number" id="np-cost" required value="85" step="0.01" class="w-full px-3 py-2 border border-slate-300 rounded-xl">
+                    </div>
+                    <div>
+                        <label class="font-semibold text-slate-700 block mb-1">Precio Venta ($)</label>
+                        <input type="number" id="np-price" required value="165" step="0.01" class="w-full px-3 py-2 border border-slate-300 rounded-xl">
+                    </div>
+                </div>
+                <button type="submit" class="w-full py-3 rounded-xl bg-plum-900 hover:bg-plum-800 text-white font-bold text-sm mt-2 transition">Guardar en Catálogo</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // INITIAL DATA (Perfume Store Catalog with Descriptions & Photo support)
+        let products = [
+            { id: 1, sku: 'PRF-001', name: 'Chanel N°5 Eau de Parfum 100ml', category: 'Damas', description: 'Clásico floral aldehídico con notas de rosa de mayo, jazmín, ylang-ylang y vainilla bourbon.', cost: 95, price: 165.00, stock: 14, image: null, color: 'from-amber-100 to-amber-200', bottle: 'text-amber-600' },
+            { id: 2, sku: 'PRF-002', name: 'Dior Sauvage Elixir 60ml', category: 'Caballeros', description: 'Fragancia concentrada con notas especiadas de canela, nuez moscada, lavanda y sándalo.', cost: 88, price: 155.00, stock: 9, image: null, color: 'from-slate-800 to-indigo-950', bottle: 'text-indigo-300' },
+            { id: 3, sku: 'PRF-003', name: 'Lattafa Khamrah 100ml', category: 'Nicho', description: 'Perfume árabe dulce y especiado con acordes de dátiles, praliné, canela y haba tonka.', cost: 28, price: 65.00, stock: 22, image: null, color: 'from-orange-900 to-amber-800', bottle: 'text-amber-300' },
+            { id: 4, sku: 'PRF-004', name: 'Carolina Herrera Good Girl 80ml', category: 'Damas', description: 'Aroma sensual de almendra, café, nardos, jazmín sambac y cacao tostado.', cost: 72, price: 130.00, stock: 3, image: null, color: 'from-blue-950 to-slate-900', bottle: 'text-gold-400' },
+            { id: 5, sku: 'PRF-005', name: 'Bleu de Chanel Parfum 100ml', category: 'Caballeros', description: 'Amaderado aromático intenso con frescura cítrica, cedro de Nueva Caledonia y sándalo.', cost: 92, price: 160.00, stock: 11, image: null, color: 'from-sky-950 to-slate-900', bottle: 'text-sky-300' },
+            { id: 6, sku: 'PRF-006', name: 'CK One Eau de Toilette 200ml', category: 'Unisex', description: 'Fresco cítrico verde con bergamota, té verde, papaya y almizcle limpio para uso diario.', cost: 32, price: 68.00, stock: 18, image: null, color: 'from-slate-100 to-slate-200', bottle: 'text-slate-500' },
+            { id: 7, sku: 'PRF-007', name: 'YSL Libre Intense 90ml', category: 'Damas', description: 'Fusión floral cálida de lavanda francesa, flor de azahar, orquídea y vainilla de Madagascar.', cost: 80, price: 145.00, stock: 2, image: null, color: 'from-amber-700 to-yellow-900', bottle: 'text-gold-200' },
+            { id: 8, sku: 'PRF-008', name: 'Creed Aventus 100ml', category: 'Nicho', description: 'Chipre frutal de lujo con piña, bergamota, abedul ahumado, musgo de roble y ámbar gris.', cost: 210, price: 340.00, stock: 5, image: null, color: 'from-zinc-800 to-zinc-950', bottle: 'text-zinc-300' },
+        ];
+
+        let cart = [];
+        let currentCategory = 'Todos';
+        let currentRole = 'admin';
+        let selectedPaymentMethod = 'Efectivo';
+        let cashSalesEfectivo = 345.00;
+        let cashSalesTarjeta = 520.00;
+        let invoiceSequence = 42;
+        let uploadedPhotoDataUrl = null;
+        let activeDetailProductId = null;
+
+        // CUSTOM TOAST HELPER (Replaces native alert)
+        function showToast(message) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-message').textContent = message;
+            toast.classList.remove('translate-x-[150%]');
+            toast.classList.add('translate-x-0');
+            setTimeout(() => {
+                toast.classList.remove('translate-x-0');
+                toast.classList.add('translate-x-[150%]');
+            }, 3200);
+        }
+
+        // NAVIGATION & SIDEBAR CONTROLS
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+
+        function switchView(viewName) {
+            // RBAC Protection for restricted modules
+            if ((viewName === 'contabilidad' || viewName === 'usuarios') && currentRole !== 'admin') {
+                showToast('Acceso denegado: Se requiere rol de Administrador (RBAC).');
+                return;
+            }
+
+            document.querySelectorAll('.view-section').forEach(sec => {
+                sec.classList.add('hidden');
+                sec.classList.remove('flex');
+            });
+
+            const target = document.getElementById(`view-${viewName}`);
+            if (target) {
+                target.classList.remove('hidden');
+                target.classList.add('flex');
+            }
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if (btn.dataset.nav === viewName) {
+                    btn.className = 'nav-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition bg-plum-900 text-white shadow-sm';
+                    const icon = btn.querySelector('svg, i');
+                    if (icon) icon.classList.add('text-gold-400');
+                } else {
+                    btn.className = 'nav-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition';
+                    const icon = btn.querySelector('svg, i');
+                    if (icon) icon.classList.remove('text-gold-400');
+                }
+            });
+
+            // Close mobile sidebar if open
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar.classList.contains('-translate-x-full') && window.innerWidth < 1024) {
+                toggleMobileMenu();
+            }
+        }
+
+        // RBAC ROLE SWITCHER
+        function setRole(role) {
+            currentRole = role;
+            const btnAdmin = document.getElementById('btn-role-admin');
+            const btnCajero = document.getElementById('btn-role-cajero');
+
+            if (role === 'admin') {
+                btnAdmin.className = 'px-2.5 py-1 rounded-lg font-semibold transition bg-gold-400 text-plum-950 shadow';
+                btnCajero.className = 'px-2.5 py-1 rounded-lg font-semibold transition text-plum-200 hover:text-white';
+                document.getElementById('user-avatar').textContent = 'AG';
+                document.getElementById('user-name').textContent = 'Ana Gómez';
+                document.getElementById('user-role-label').textContent = 'Administradora';
+                document.getElementById('nav-contabilidad').style.display = 'flex';
+                document.getElementById('nav-usuarios').style.display = 'flex';
+                document.getElementById('btn-add-product').style.display = 'flex';
+            } else {
+                btnCajero.className = 'px-2.5 py-1 rounded-lg font-semibold transition bg-gold-400 text-plum-950 shadow';
+                btnAdmin.className = 'px-2.5 py-1 rounded-lg font-semibold transition text-plum-200 hover:text-white';
+                document.getElementById('user-avatar').textContent = 'CM';
+                document.getElementById('user-name').textContent = 'Carlos Méndez';
+                document.getElementById('user-role-label').textContent = 'Cajero POS';
+                document.getElementById('nav-contabilidad').style.display = 'none';
+                document.getElementById('nav-usuarios').style.display = 'none';
+                document.getElementById('btn-add-product').style.display = 'none';
+
+                // Redirect to POS if currently viewing an admin-only view
+                const activeView = document.querySelector('.view-section:not(.hidden)');
+                if (activeView && (activeView.id === 'view-contabilidad' || activeView.id === 'view-usuarios')) {
+                    switchView('pos');
+                }
+            }
+
+            renderInventory();
+            showToast(`Modo cambiado a: ${role === 'admin' ? 'Administrador' : 'Cajero'}`);
+        }
+
+        // CATEGORY FILTERING
+        function setCategory(category) {
+            currentCategory = category;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                const isMatch = (category === 'Nicho' && btn.textContent.includes('Nicho')) || btn.textContent.trim() === category;
+                if (isMatch) {
+                    btn.className = 'cat-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-plum-900 text-white whitespace-nowrap shadow-sm';
+                } else {
+                    btn.className = 'cat-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 whitespace-nowrap';
+                }
+            });
+            renderProducts();
+        }
+
+        function renderProducts() {
+            const query = document.getElementById('pos-search').value.toLowerCase();
+            const grid = document.getElementById('pos-product-grid');
+
+            const filtered = products.filter(p => {
+                const matchCat = currentCategory === 'Todos' || p.category === currentCategory;
+                const matchQuery = p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query) || (p.description && p.description.toLowerCase().includes(query));
+                return matchCat && matchQuery;
+            });
+
+            grid.innerHTML = filtered.map(p => `
+                <div onclick="openProductDetail(${p.id})" class="group bg-white rounded-2xl border border-slate-200/90 p-3 flex flex-col justify-between cursor-pointer hover:border-plum-800 hover:shadow-md transition relative overflow-hidden">
+                    ${p.stock <= 4 ? `<span class="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold z-10 shadow-xs">Quedan ${p.stock}</span>` : ''}
+                    
+                    <!-- Visual Perfume Photo or Bottle Card Graphic -->
+                    ${p.image 
+                        ? `<div class="h-28 rounded-xl mb-3 overflow-hidden bg-slate-100 relative">
+                               <img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                           </div>`
+                        : `<div class="h-28 rounded-xl bg-gradient-to-br ${p.color} mb-3 flex flex-col items-center justify-center relative overflow-hidden">
+                               <div class="w-4 h-2.5 bg-gold-400 rounded-t-sm"></div>
+                               <div class="w-11 h-14 rounded-lg bg-white/20 backdrop-blur-xs border border-white/40 flex items-center justify-center shadow-inner group-hover:scale-105 transition">
+                                   <span class="font-serif text-[10px] font-bold tracking-widest uppercase ${p.bottle}">EAU</span>
+                               </div>
+                           </div>`
+                    }
+
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">${p.category}</span>
+                            <span class="text-[10px] text-plum-700 font-medium opacity-0 group-hover:opacity-100 transition">Ver ficha</span>
+                        </div>
+                        <h3 class="font-bold text-xs text-slate-800 line-clamp-1 mt-0.5 leading-snug">${p.name}</h3>
+                        <p class="text-[10px] text-slate-500 line-clamp-1 mt-0.5">${p.description || 'Sin descripción'}</p>
+                    </div>
+
+                    <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                        <span class="font-bold text-sm text-plum-900">$${p.price.toFixed(2)}</span>
+                        <button onclick="event.stopPropagation(); addToCart(${p.id})" title="Agregar directo a factura" class="w-8 h-8 rounded-lg bg-plum-50 text-plum-900 hover:bg-plum-900 hover:text-white flex items-center justify-center transition shadow-2xs">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            lucide.createIcons();
+        }
+
+        // PRODUCT DETAIL MODAL (CLICKABLE ITEM)
+        function openProductDetail(productId) {
+            const p = products.find(item => item.id === productId);
+            if (!p) return;
+            activeDetailProductId = p.id;
+
+            document.getElementById('detail-sku').textContent = p.sku;
+            document.getElementById('detail-category').textContent = p.category;
+            document.getElementById('detail-name').textContent = p.name;
+            document.getElementById('detail-description').textContent = p.description || 'Sin descripción registrada.';
+            document.getElementById('detail-price').textContent = `$${p.price.toFixed(2)}`;
+            document.getElementById('detail-stock').textContent = `${p.stock} uds.`;
+
+            const imgContainer = document.getElementById('detail-image-container');
+            if (p.image) {
+                imgContainer.innerHTML = `<img src="${p.image}" alt="${p.name}" class="w-full h-full object-cover">`;
+            } else {
+                imgContainer.innerHTML = `
+                    <div class="w-full h-full bg-gradient-to-br ${p.color} flex flex-col items-center justify-center">
+                        <div class="w-5 h-3 bg-gold-400 rounded-t-sm"></div>
+                        <div class="w-14 h-18 rounded-xl bg-white/20 backdrop-blur-xs border border-white/40 flex items-center justify-center shadow-inner">
+                            <span class="font-serif text-xs font-bold tracking-widest uppercase ${p.bottle}">EAU</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // RBAC visibility for cost & description editing
+            const costBox = document.getElementById('detail-cost-box');
+            const editDescBox = document.getElementById('detail-edit-desc-box');
+            if (currentRole === 'admin') {
+                costBox.style.display = 'block';
+                document.getElementById('detail-cost').textContent = `$${p.cost.toFixed(2)}`;
+                editDescBox.style.display = 'block';
+                document.getElementById('detail-edit-desc-input').value = p.description || '';
+            } else {
+                costBox.style.display = 'none';
+                editDescBox.style.display = 'none';
+            }
+
+            const addBtn = document.getElementById('detail-add-cart-btn');
+            addBtn.onclick = () => {
+                addToCart(p.id);
+                closeProductDetailModal();
+                showToast(`${p.name} agregado al ticket.`);
+            };
+
+            const modal = document.getElementById('product-detail-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function closeProductDetailModal() {
+            const modal = document.getElementById('product-detail-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            activeDetailProductId = null;
+        }
+
+        function saveProductDescription() {
+            if (!activeDetailProductId) return;
+            const p = products.find(item => item.id === activeDetailProductId);
+            if (!p) return;
+
+            const newDesc = document.getElementById('detail-edit-desc-input').value.trim();
+            p.description = newDesc;
+            document.getElementById('detail-description').textContent = newDesc || 'Sin descripción registrada.';
+            renderProducts();
+            renderInventory();
+            showToast('Descripción del perfume actualizada.');
+        }
+
+        // CART LOGIC
+        function addToCart(productId) {
+            const product = products.find(p => p.id === productId);
+            if (!product || product.stock <= 0) return;
+
+            const existing = cart.find(item => item.id === productId);
+            if (existing) {
+                if (existing.qty < product.stock) {
+                    existing.qty++;
+                } else {
+                    showToast('Stock máximo alcanzado para este perfume.');
+                }
+            } else {
+                cart.push({ ...product, qty: 1 });
+            }
+            updateCartUI();
+        }
+
+        function updateQty(productId, delta) {
+            const idx = cart.findIndex(item => item.id === productId);
+            if (idx === -1) return;
+
+            const product = products.find(p => p.id === productId);
+            const newQty = cart[idx].qty + delta;
+
+            if (newQty <= 0) {
+                cart.splice(idx, 1);
+            } else if (newQty <= product.stock) {
+                cart[idx].qty = newQty;
+            }
+            updateCartUI();
+        }
+
+        function clearCart() {
+            cart = [];
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            const container = document.getElementById('cart-items-container');
+            const discountPct = parseFloat(document.getElementById('cart-discount').value) || 0;
+
+            if (cart.length === 0) {
+                container.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-center py-8 text-slate-400">
+                        <i data-lucide="sparkles" class="w-8 h-8 mb-2 text-slate-300"></i>
+                        <p class="text-xs font-medium">Selecciona perfumes del catálogo<br>para iniciar la factura</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = cart.map(item => `
+                    <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-bold text-slate-800 truncate">${item.name}</p>
+                            <p class="text-[11px] text-slate-500">$${item.price.toFixed(2)} c/u</p>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg p-0.5">
+                            <button onclick="updateQty(${item.id}, -1)" class="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded">-</button>
+                            <span class="text-xs font-bold w-5 text-center">${item.qty}</span>
+                            <button onclick="updateQty(${item.id}, 1)" class="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded">+</button>
+                        </div>
+                        <span class="text-xs font-bold text-plum-900 w-16 text-right">$${(item.price * item.qty).toFixed(2)}</span>
+                    </div>
+                `).join('');
+            }
+
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+            const discountAmount = subtotal * (discountPct / 100);
+            const taxedBase = subtotal - discountAmount;
+            const tax = taxedBase * 0.18;
+            const total = taxedBase + tax;
+
+            document.getElementById('cart-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+            document.getElementById('cart-tax').textContent = `$${tax.toFixed(2)}`;
+            document.getElementById('cart-total').textContent = `$${total.toFixed(2)}`;
+            
+            // Mobile bar updates
+            const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+            document.getElementById('mobile-cart-count').textContent = totalItems;
+            document.getElementById('mobile-cart-total').textContent = `$${total.toFixed(2)}`;
+
+            document.getElementById('btn-checkout').disabled = cart.length === 0;
+            lucide.createIcons();
+            return total;
+        }
+
+        function toggleMobileCart() {
+            const panel = document.getElementById('pos-cart-panel');
+            panel.classList.toggle('translate-y-[calc(100%-48px)]');
+        }
+
+        // CHECKOUT MODAL LOGIC
+        function openCheckoutModal() {
+            const total = updateCartUI();
+            document.getElementById('modal-total-amount').textContent = `$${total.toFixed(2)}`;
+            document.getElementById('cash-received-input').value = Math.ceil(total);
+            calculateChange();
+            const modal = document.getElementById('checkout-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeCheckoutModal() {
+            const modal = document.getElementById('checkout-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function selectPaymentMethod(method) {
+            selectedPaymentMethod = method;
+            document.querySelectorAll('.pay-method-btn').forEach(btn => {
+                if (btn.textContent.includes(method.substring(0, 5))) {
+                    btn.className = 'pay-method-btn py-2.5 px-3 rounded-xl border-2 border-plum-900 bg-plum-50 text-plum-900 font-bold text-xs flex flex-col items-center gap-1';
+                } else {
+                    btn.className = 'pay-method-btn py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs flex flex-col items-center gap-1';
+                }
+            });
+            document.getElementById('cash-received-box').style.display = method === 'Efectivo' ? 'block' : 'none';
+        }
+
+        function calculateChange() {
+            const total = parseFloat(document.getElementById('modal-total-amount').textContent.replace('$', ''));
+            const received = parseFloat(document.getElementById('cash-received-input').value) || 0;
+            const change = Math.max(0, received - total);
+            document.getElementById('cash-change-amount').textContent = `$${change.toFixed(2)}`;
+        }
+
+        function completeSale() {
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+            const discountPct = parseFloat(document.getElementById('cart-discount').value) || 0;
+            const discountAmount = subtotal * (discountPct / 100);
+            const taxedBase = subtotal - discountAmount;
+            const tax = taxedBase * 0.18;
+            const total = taxedBase + tax;
+
+            const received = parseFloat(document.getElementById('cash-received-input').value) || total;
+            const change = Math.max(0, received - total);
+            const clientInput = document.getElementById('pos-client-name').value.trim() || 'CONSUMIDOR FINAL';
+            const formattedOrderNum = String(invoiceSequence).padStart(6, '0');
+
+            // Populate Printable Invoice Data
+            document.getElementById('inv-number').textContent = `FAC-${formattedOrderNum}`;
+            document.getElementById('inv-barcode-text').textContent = `*FAC${formattedOrderNum}*`;
+            const now = new Date();
+            document.getElementById('inv-date').textContent = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            document.getElementById('inv-cashier').textContent = currentRole === 'admin' ? 'Ana Gómez' : 'Carlos Méndez';
+            document.getElementById('inv-client').textContent = clientInput.toUpperCase();
+            document.getElementById('inv-method').textContent = selectedPaymentMethod.toUpperCase();
+
+            document.getElementById('inv-items-list').innerHTML = cart.map(item => `
+                <div>
+                    <div class="grid grid-cols-12">
+                        <span class="col-span-2 font-bold">${item.qty}x</span>
+                        <span class="col-span-6 truncate">${item.name}</span>
+                        <span class="col-span-4 text-right font-bold">$${(item.price * item.qty).toFixed(2)}</span>
+                    </div>
+                    <div class="text-[9px] text-slate-500 pl-6">SKU: ${item.sku} | P.Unit: $${item.price.toFixed(2)}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('inv-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+            document.getElementById('inv-discount').textContent = `-$${discountAmount.toFixed(2)}`;
+            document.getElementById('inv-discount-row').style.display = discountAmount > 0 ? 'flex' : 'none';
+            document.getElementById('inv-tax').textContent = `$${tax.toFixed(2)}`;
+            document.getElementById('inv-total').textContent = `$${total.toFixed(2)}`;
+
+            if (selectedPaymentMethod === 'Efectivo') {
+                document.getElementById('inv-cash-details').style.display = 'flex';
+                document.getElementById('inv-received').textContent = `$${received.toFixed(2)}`;
+                document.getElementById('inv-change').textContent = `$${change.toFixed(2)}`;
+            } else {
+                document.getElementById('inv-cash-details').style.display = 'none';
+            }
+
+            // Deduct stock
+            cart.forEach(item => {
+                const prod = products.find(p => p.id === item.id);
+                if (prod) prod.stock -= item.qty;
+            });
+
+            // Update Cash Register
+            if (selectedPaymentMethod === 'Efectivo') {
+                cashSalesEfectivo += total;
+            } else {
+                cashSalesTarjeta += total;
+            }
+            updateCashRegisterUI(total, formattedOrderNum);
+
+            // Reset POS state for next order
+            cart = [];
+            document.getElementById('pos-client-name').value = '';
+            document.getElementById('cart-discount').value = 0;
+            invoiceSequence++;
+            document.getElementById('current-order-number').textContent = String(invoiceSequence).padStart(4, '0');
+
+            closeCheckoutModal();
+            updateCartUI();
+            renderProducts();
+            renderInventory();
+
+            // Open Printable Invoice Modal
+            const invModal = document.getElementById('invoice-preview-modal');
+            invModal.classList.remove('hidden');
+            invModal.classList.add('flex');
+            lucide.createIcons();
+        }
+
+        function closeInvoiceModal() {
+            const invModal = document.getElementById('invoice-preview-modal');
+            invModal.classList.add('hidden');
+            invModal.classList.remove('flex');
+        }
+
+        function updateCashRegisterUI(lastSaleAmount, orderNum) {
+            document.getElementById('cash-sales-efectivo').textContent = `$${cashSalesEfectivo.toFixed(2)}`;
+            document.getElementById('cash-sales-tarjeta').textContent = `$${cashSalesTarjeta.toFixed(2)}`;
+            const expected = 150 + cashSalesEfectivo;
+            document.getElementById('cash-expected').textContent = `$${expected.toFixed(2)}`;
+
+            const tbody = document.getElementById('cash-movements-list');
+            const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            tbody.insertAdjacentHTML('afterbegin', `
+                <tr class="bg-emerald-50/40">
+                    <td class="px-5 py-3 text-slate-500">${now}</td>
+                    <td class="px-5 py-3 font-medium">Venta Ticket #${orderNum}</td>
+                    <td class="px-5 py-3"><span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">${selectedPaymentMethod}</span></td>
+                    <td class="px-5 py-3">${currentRole === 'admin' ? 'Ana Gómez' : 'Carlos Méndez'}</td>
+                    <td class="px-5 py-3 text-right font-bold text-emerald-600">+$${lastSaleAmount.toFixed(2)}</td>
+                </tr>
+            `);
+        }
+
+        function registerCashMovement(type) {
+            showToast(type === 'ingreso' ? 'Entrada de efectivo registrada en gaveta.' : 'Salida de caja menor registrada.');
+        }
+
+        // INVENTORY TABLE RENDER
+        function renderInventory() {
+            const tbody = document.getElementById('inventory-table-body');
+            let lowStockCount = 0;
+
+            tbody.innerHTML = products.map(p => {
+                if (p.stock <= 4) lowStockCount++;
+                return `
+                    <tr onclick="openProductDetail(${p.id})" class="hover:bg-plum-50/50 cursor-pointer transition">
+                        <td class="px-5 py-3.5">
+                            <div class="flex items-center gap-3">
+                                ${p.image 
+                                    ? `<img src="${p.image}" class="w-9 h-9 rounded-lg object-cover border border-slate-200 shrink-0">`
+                                    : `<div class="w-9 h-9 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center shrink-0"><span class="font-serif text-[8px] font-bold ${p.bottle}">EAU</span></div>`
+                                }
+                                <div>
+                                    <p class="font-bold text-slate-800">${p.name}</p>
+                                    <p class="text-[11px] text-slate-400 line-clamp-1 max-w-xs">${p.description || ''}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-5 py-3.5 text-slate-600">${p.category}</td>
+                        <td class="px-5 py-3.5 font-mono text-slate-500">${p.sku}</td>
+                        <td class="px-5 py-3.5 text-slate-500">${currentRole === 'admin' ? `$${p.cost.toFixed(2)}` : '<span class="text-slate-300 italic">Oculto (RBAC)</span>'}</td>
+                        <td class="px-5 py-3.5 font-bold text-plum-900">$${p.price.toFixed(2)}</td>
+                        <td class="px-5 py-3.5 font-bold">${p.stock} uds.</td>
+                        <td class="px-5 py-3.5 text-right">
+                            ${p.stock <= 4 
+                                ? '<span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-[11px]">Stock Bajo</span>' 
+                                : '<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px]">Disponible</span>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('low-stock-badge').textContent = lowStockCount;
+        }
+
+        // NEW PRODUCT MODAL & PHOTO UPLOAD PREVIEW
+        function previewNewProductPhoto(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedPhotoDataUrl = e.target.result;
+                const previewBox = document.getElementById('np-photo-preview');
+                previewBox.innerHTML = `<img src="${uploadedPhotoDataUrl}" alt="Vista previa" class="w-full h-full object-cover">`;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function openNewProductModal() {
+            uploadedPhotoDataUrl = null;
+            document.getElementById('np-photo-preview').innerHTML = `
+                <i data-lucide="camera" class="w-6 h-6 mb-0.5"></i>
+                <span class="text-[9px]">Vista previa</span>
+            `;
+            document.getElementById('new-product-modal').classList.remove('hidden');
+            document.getElementById('new-product-modal').classList.add('flex');
+            lucide.createIcons();
+        }
+        function closeNewProductModal() {
+            document.getElementById('new-product-modal').classList.add('hidden');
+            document.getElementById('new-product-modal').classList.remove('flex');
+        }
+        function addNewProduct(e) {
+            e.preventDefault();
+            const newProd = {
+                id: products.length + 1,
+                sku: `PRF-00${products.length + 1}`,
+                name: document.getElementById('np-name').value,
+                description: document.getElementById('np-description').value,
+                category: document.getElementById('np-cat').value,
+                cost: parseFloat(document.getElementById('np-cost').value),
+                price: parseFloat(document.getElementById('np-price').value),
+                stock: parseInt(document.getElementById('np-stock').value),
+                image: uploadedPhotoDataUrl,
+                color: 'from-plum-100 to-plum-200',
+                bottle: 'text-plum-800'
+            };
+            products.unshift(newProd);
+            closeNewProductModal();
+            renderProducts();
+            renderInventory();
+            showToast('Perfume registrado con foto y descripción en el catálogo.');
+            e.target.reset();
+        }
+
+        // INITIALIZE APP ON LOAD
+        window.onload = function () {
+            renderProducts();
+            renderInventory();
+            updateCartUI();
+            lucide.createIcons();
+        };
+    </script>
+</body>
+</html>
