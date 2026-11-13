@@ -1,22 +1,36 @@
-import { ShieldCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { userService } from '@/services/api'
 interface UsuariosViewProps {
   isAdmin: boolean
   showToast: (msg: string) => void
 }
 
 export function UsuariosView({ isAdmin, showToast }: UsuariosViewProps) {
+  const [usuarios, setUsuarios] = useState<Array<{ nombre: string; email: string; avatar: string; rol: string; color: string }>>([])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    userService.list().then((res) => {
+      setUsuarios((res.data as any[]).map((u) => {
+        const nombre = u.Nombre ?? u.nombre
+        const rol = u.Rol ?? u.rol
+        return {
+          nombre,
+          email: u.Email ?? u.email,
+          avatar: String(nombre).split(' ').map((n: string) => n[0]).join('').slice(0, 2),
+          rol,
+          color: rol === 'ROLE_ADMIN' ? 'bg-plum-100 text-plum-900' : 'bg-amber-100 text-amber-800',
+        }
+      }))
+    }).catch(() => showToast('No se pudieron cargar los usuarios.'))
+  }, [isAdmin, showToast])
+
   if (!isAdmin) {
-    showToast('Acceso denegado: Se requiere rol de Administrador (RBAC).')
     return null
   }
 
-  const usuarios = [
-    { nombre: 'Ana Gómez (Dueña)', email: 'ana@lessence.com', avatar: 'AG', rol: 'ROLE_ADMIN', rolLabel: 'Administrador', color: 'bg-plum-100 text-plum-900' },
-    { nombre: 'Carlos Méndez', email: 'caja1@lessence.com', avatar: 'CM', rol: 'ROLE_CAJERO', rolLabel: 'Cajero', color: 'bg-amber-100 text-amber-800' },
-  ]
-
   return (
-    <section id="view-usuarios" className="view-section hidden flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+    <section id="view-usuarios" className="view-section flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
       <div>
         <h2 className="text-xl font-bold text-slate-800">Control de Usuarios y Seguridad RBAC</h2>
         <p className="text-xs text-slate-500">Administración de roles, tokens JWT y matriz de permisos del sistema</p>

@@ -66,10 +66,10 @@ export function ProductCatalog({ products, currentCategory, setCurrentCategory, 
                   <img src={p.imagenUrl} alt={p.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                 </div>
               ) : (
-                <div className="h-28 rounded-xl bg-gradient-to-br {color} mb-3 flex flex-col items-center justify-center relative overflow-hidden">
+                <div className={`h-28 rounded-xl bg-gradient-to-br ${color} mb-3 flex flex-col items-center justify-center relative overflow-hidden`}>
                   <div className="w-4 h-2.5 bg-gold-400 rounded-t-sm"></div>
                   <div className="w-11 h-14 rounded-lg bg-white/20 backdrop-blur-xs border border-white/40 flex items-center justify-center shadow-inner group-hover:scale-105 transition">
-                    <span className="font-serif text-[10px] font-bold tracking-widest uppercase {bottle}">EAU</span>
+                    <span className={`font-serif text-[10px] font-bold tracking-widest uppercase ${bottle}`}>EAU</span>
                   </div>
                 </div>
               )}

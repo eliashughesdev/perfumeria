@@ -33,7 +33,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((r) => r.json())
-        .then((u) => setUsuario(u))
+        .then((u) => setUsuario({
+          id: u.Id ?? u.id,
+          nombre: u.Nombre ?? u.nombre,
+          email: u.Email ?? u.email,
+          rol: u.Rol ?? u.rol,
+          activo: u.Activo ?? u.activo ?? true,
+        }))
         .catch(() => {
           localStorage.removeItem('lessence_token')
           setToken(null)

@@ -91,7 +91,7 @@ export function InvoicePreviewModal({ isOpen, onClose }: InvoicePreviewModalProp
                           <span className="col-span-6 truncate">{item.nombre}</span>
                           <span className="col-span-4 text-right font-bold">{formatMoney(item.importe)}</span>
                         </div>
-                        <div className="text-[9px] text-slate-500 pl-6">SKU: {item.sku || 'N/A'} | P.Unit: ${formatMoney(item.precioUnitario)}</div>
+                        <div className="text-[9px] text-slate-500 pl-6">SKU: {item.sku || 'N/A'} | P.Unit: {formatMoney(item.precioUnitario)}</div>
                       </div>
                     ))}
                   </div>

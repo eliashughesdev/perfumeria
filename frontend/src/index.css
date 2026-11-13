@@ -29,7 +29,9 @@
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(8px);
   }
+}
 
+@media print {
   .no-print {
     display: none !important;
   }

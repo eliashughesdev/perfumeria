@@ -13,7 +13,8 @@ import { CajaView } from '@/components/caja/CajaView'
 import { InventarioView } from '@/components/inventario/InventarioView'
 import { ContabilidadView } from '@/components/contabilidad/ContabilidadView'
 import { UsuariosView } from '@/components/usuarios/UsuariosView'
-import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { productService, saleService } from '@/services/api'
 import type { DetalleVenta } from '@/types'
 
 type ViewName = 'pos' | 'caja' | 'inventario' | 'contabilidad' | 'usuarios'
@@ -42,13 +43,47 @@ function App() {
   const [cashReceived, setCashReceived] = useState(0)
   const [lowStockCount, setLowStockCount] = useState(0)
 
-  const { usuario } = useAuth()
+  const { usuario, token, login, isLoading, isAuthenticated } = useAuth()
+  const [loginEmail, setLoginEmail] = useState('admin@lessence.com')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loginBusy, setLoginBusy] = useState(false)
 
   useEffect(() => {
     if (usuario) {
       setRole(usuario.rol === 'ROLE_ADMIN' ? 'admin' : 'cajero')
     }
   }, [usuario])
+
+  const mapProduct = (p: any) => ({
+    id: p.Id ?? p.id,
+    sku: p.SKU ?? p.sku,
+    nombre: p.Nombre ?? p.nombre,
+    descripcion: p.Descripcion ?? p.descripcion,
+    categoria: p.Categoria ?? p.categoria,
+            costo: p.Costo != null || p.costo != null ? Number(p.Costo ?? p.costo) : null,
+    precioVenta: Number(p.PrecioVenta ?? p.precioVenta ?? 0),
+    stockActual: p.StockActual ?? p.stockActual ?? 0,
+    stockMinimo: p.StockMinimo ?? p.stockMinimo ?? 0,
+    imagenUrl: p.ImagenUrl ?? p.imagenUrl,
+    activo: p.Activo ?? p.activo ?? true,
+  })
+
+  const loadProducts = useCallback(() => {
+    if (!token) return
+    productService
+      .list()
+      .then((res) => setProducts((res.data as any[]).map(mapProduct)))
+      .catch((err) => console.error('Error cargando productos', err))
+  }, [token])
+
+  useEffect(() => {
+    loadProducts()
+  }, [loadProducts])
+
+  useEffect(() => {
+    setLowStockCount(products.filter((p) => p.stockActual <= (p.stockMinimo || 4)).length)
+  }, [products])
 
   const showToast = useCallback((msg: string) => {
     setToast({ message: msg, visible: true })
@@ -134,42 +169,70 @@ function App() {
   const completeSale = async () => {
     const { subtotal, discountAmount, tax, total } = calculateTotals()
     const venta: any = {
-      cliente: clientName || 'CONSUMIDOR FINAL',
-      metodoPago: paymentMethod,
-      descuentoPorcentaje: discountPct,
-      efectivoRecibido: paymentMethod === 'Efectivo' ? cashReceived : undefined,
-      detalles: cart.map((item: any) => ({
-        idProducto: item.idProducto,
-        sku: item.sku,
-        nombreProducto: item.nombreProducto,
-        cantidad: item.cantidad,
-        precioUnitario: item.precioUnitario,
+      Cliente: clientName || 'CONSUMIDOR FINAL',
+      MetodoPago: paymentMethod,
+      DescuentoPorcentaje: discountPct,
+      EfectivoRecibido: paymentMethod === 'Efectivo' ? cashReceived : undefined,
+      Detalles: cart.map((item: any) => ({
+        IdProducto: item.idProducto,
+        SKU: item.sku,
+        NombreProducto: item.nombreProducto,
+        Cantidad: item.cantidad,
+        PrecioUnitario: item.precioUnitario,
       })),
     }
 
     try {
-      const res = await fetch('http://localhost:8050/api/sales', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('lessence_token')}`,
+      const res = await saleService.create(venta)
+      const ventaId = (res.data as any).Id ?? (res.data as any).id
+      const invoiceRes = await saleService.invoice(ventaId)
+      const raw = invoiceRes.data as any
+      const invoice = {
+        empresa: {
+          nombre: raw.empresa?.nombre,
+          razonSocial: raw.empresa?.razonSocial ?? raw.empresa?.razon_social,
+          rnc: raw.empresa?.rnc,
+          direccion: raw.empresa?.direccion,
+          ciudad: raw.empresa?.ciudad,
+          telefono: raw.empresa?.telefono,
         },
-        body: JSON.stringify(venta),
-      })
-      if (!res.ok) throw new Error('Error al registrar venta')
-      const data = await res.json()
+        factura: {
+          numero: raw.factura?.numero,
+          ncf: raw.factura?.ncf,
+          fecha: raw.factura?.fecha,
+          cajero: raw.factura?.cajero,
+          cliente: raw.factura?.cliente,
+          metodoPago: raw.factura?.metodoPago ?? raw.factura?.metodo_pago,
+        },
+        items: (raw.items || []).map((item: any) => ({
+          cantidad: item.cantidad,
+          sku: item.sku,
+          nombre: item.nombre,
+          precioUnitario: Number(item.precioUnitario ?? item.precio_unitario ?? 0),
+          importe: Number(item.importe ?? 0),
+        })),
+        totales: {
+          subtotal: Number(raw.totales?.subtotal ?? 0),
+          descuento: Number(raw.totales?.descuento ?? 0),
+          itbis: Number(raw.totales?.itbis ?? 0),
+          total: Number(raw.totales?.total ?? 0),
+          efectivoRecibido: raw.totales?.efectivoRecibido ?? raw.totales?.efectivo_recibido,
+          cambio: raw.totales?.cambio,
+        },
+      }
 
+      sessionStorage.setItem('last_invoice', JSON.stringify(invoice))
       setIsCheckoutOpen(false)
       setCart([])
       setClientName('')
       setDiscountPct(0)
       setInvoiceSequence((s) => s + 1)
-
       setIsInvoiceOpen(true)
-      sessionStorage.setItem('last_invoice', JSON.stringify(data))
+      loadProducts()
       showToast('Venta registrada y ticket generado.')
-    } catch (err) {
-      showToast('Error al procesar la venta.')
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail
+      showToast(typeof detail === 'string' ? detail : 'Error al procesar la venta.')
       console.error(err)
     }
   }
@@ -187,9 +250,64 @@ function App() {
     }
   }
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginBusy(true)
+    setLoginError('')
+    try {
+      await login({ email: loginEmail, password: loginPassword })
+    } catch {
+      setLoginError('Credenciales inválidas')
+    } finally {
+      setLoginBusy(false)
+    }
+  }
+
+  if (isLoading) {
+    return <div className="h-screen flex items-center justify-center text-slate-500 text-sm">Cargando sesión...</div>
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-plum-950 px-4">
+        <form onSubmit={handleLogin} className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl space-y-4">
+          <div>
+            <h1 className="font-serif text-2xl font-bold text-plum-900">L'ESSENCE</h1>
+            <p className="text-xs text-slate-500 mt-1">Inicia sesión para abrir el punto de venta</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-700">Correo</label>
+            <input
+              type="email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              className="mt-1 w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-700">Contraseña</label>
+            <input
+              type="password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              className="mt-1 w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm"
+              required
+            />
+          </div>
+          {loginError && <p className="text-xs text-rose-600">{loginError}</p>}
+          <button type="submit" disabled={loginBusy} className="w-full py-3 rounded-xl bg-plum-900 text-white text-sm font-bold disabled:opacity-60">
+            {loginBusy ? 'Entrando...' : 'Entrar'}
+          </button>
+          <p className="text-[11px] text-slate-400">Admin: admin@lessence.com · Cajero: caja1@lessence.com · Admin123!</p>
+        </form>
+      </div>
+    )
+  }
+
   return (
-    <AuthProvider>
-      <div className="flex-1 flex overflow-hidden relative h-screen">
+    <>
+      <div className="flex flex-col overflow-hidden relative h-screen">
         <Toast message={toast.message} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
 
         <Header />
@@ -202,27 +320,31 @@ function App() {
             lowStockCount={lowStockCount}
           />
 
-          <main className="flex-1 overflow-hidden flex flex-col relative">
-            <ProductCatalog
-              products={filteredProducts}
-              currentCategory={currentCategory}
-              setCurrentCategory={setCurrentCategory}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              addToCart={addToCart}
-            />
+          <main className="flex-1 overflow-hidden flex flex-col lg:flex-row relative">
+            {currentView === 'pos' && (
+              <>
+                <ProductCatalog
+                  products={filteredProducts}
+                  currentCategory={currentCategory}
+                  setCurrentCategory={setCurrentCategory}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  addToCart={addToCart}
+                />
 
-            <CartPanel
-              cart={cart}
-              updateQty={updateQty}
-              clearCart={clearCart}
-              discountPct={discountPct}
-              setDiscountPct={setDiscountPct}
-              clientName={clientName}
-              setClientName={setClientName}
-              openCheckoutModal={openCheckoutModal}
-              calculateTotals={calculateTotals}
-            />
+                <CartPanel
+                  cart={cart}
+                  updateQty={updateQty}
+                  clearCart={clearCart}
+                  discountPct={discountPct}
+                  setDiscountPct={setDiscountPct}
+                  clientName={clientName}
+                  setClientName={setClientName}
+                  openCheckoutModal={openCheckoutModal}
+                  calculateTotals={calculateTotals}
+                />
+              </>
+            )}
 
             {currentView === 'caja' && <CajaView showToast={showToast} />}
             {currentView === 'inventario' && (
@@ -271,17 +393,35 @@ function App() {
             <NewProductModal
               isOpen={isNewProductOpen}
               onClose={() => setIsNewProductOpen(false)}
-              onSave={(newProd: any) => {
-                setProducts((prev: any[]) => [newProd, ...prev])
-                setIsNewProductOpen(false)
-                showToast('Perfume registrado con foto y descripción en el catálogo.')
+              onSave={async (newProd: any) => {
+                try {
+                  const res = await productService.create({
+                    SKU: newProd.sku,
+                    Nombre: newProd.name,
+                    Descripcion: newProd.description,
+                    Categoria: newProd.category === 'Árabes / Nicho' ? 'Nicho' : newProd.category,
+                    Costo: newProd.cost,
+                    PrecioVenta: newProd.price,
+                    StockActual: newProd.stock,
+                    StockMinimo: 4,
+                    ImagenUrl: newProd.image && String(newProd.image).length < 900 ? newProd.image : null,
+                    Activo: true,
+                  } as any)
+                  const saved = mapProduct(res.data)
+                  if (newProd.image) saved.imagenUrl = newProd.image
+                  setProducts((prev: any[]) => [saved, ...prev])
+                  setIsNewProductOpen(false)
+                  showToast('Perfume registrado en el catálogo.')
+                } catch (err: any) {
+                  showToast(err?.response?.data?.detail || 'No se pudo guardar el perfume.')
+                }
               }}
               isAdmin={role === 'admin'}
             />
           </main>
         </div>
       </div>
-    </AuthProvider>
+    </>
   )
 }
 

@@ -4,12 +4,6 @@ import { useAuth } from '@/contexts/AuthContext'
 export function Header() {
   const { usuario, logout, hasRole } = useAuth()
 
-  const handleRoleSwitch = (rol: string) => {
-    // En producción esto se maneja con JWT real del backend
-    // Aquí simulamos el cambio de rol para el prototipo
-    window.dispatchEvent(new CustomEvent('role-change', { detail: { rol } }))
-  }
-
   return (
     <header className="bg-plum-950 text-white h-16 px-4 lg:px-6 flex items-center justify-between shrink-0 border-b border-plum-800 shadow-md z-20">
       <div className="flex items-center gap-3">
@@ -31,23 +25,14 @@ export function Header() {
           className="cursor-pointer hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium hover:bg-emerald-500/25 transition"
         >
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>Caja Abierta ($150.00)</span>
+          <span>Sesión activa</span>
         </div>
 
         <div className="flex items-center bg-plum-900 border border-plum-800 rounded-xl p-1 text-xs">
-          <span className="hidden md:inline text-plum-200 px-2">Rol RBAC:</span>
-          <button
-            onClick={() => handleRoleSwitch('ROLE_ADMIN')}
-            className={`px-2.5 py-1 rounded-lg font-semibold transition ${hasRole('ROLE_ADMIN') ? 'bg-gold-400 text-plum-950 shadow' : 'text-plum-200 hover:text-white'}`}
-          >
-            Admin
-          </button>
-          <button
-            onClick={() => handleRoleSwitch('ROLE_CAJERO')}
-            className={`px-2.5 py-1 rounded-lg font-semibold transition ${hasRole('ROLE_CAJERO') ? 'bg-gold-400 text-plum-950 shadow' : 'text-plum-200 hover:text-white'}`}
-          >
-            Cajero
-          </button>
+          <span className="hidden md:inline text-plum-200 px-2">Rol:</span>
+          <span className={`px-2.5 py-1 rounded-lg font-semibold ${hasRole('ROLE_ADMIN') ? 'bg-gold-400 text-plum-950' : 'text-plum-200'}`}>
+            {hasRole('ROLE_ADMIN') ? 'Admin' : 'Cajero'}
+          </span>
         </div>
 
         <div className="flex items-center gap-2.5 pl-2 border-l border-plum-800">

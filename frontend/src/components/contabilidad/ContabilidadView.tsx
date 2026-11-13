@@ -12,7 +12,7 @@ export function ContabilidadView({ isAdmin, showToast }: ContabilidadViewProps) 
   }
 
   return (
-    <section id="view-contabilidad" className="view-section hidden flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+    <section id="view-contabilidad" className="view-section flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
       <div>
         <h2 className="text-xl font-bold text-slate-800">Contabilidad Básica y Rentabilidad</h2>
         <p className="text-xs text-slate-500">Resumen financiero del mes: Ingresos brutos, costo de mercancía vendida y utilidad neta</p>

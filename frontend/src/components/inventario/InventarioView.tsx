@@ -11,16 +11,14 @@ interface InventarioViewProps {
 }
 
 export function InventarioView({ products, setProducts, isAdmin, setLowStockCount, openNewProductModal, openProductDetail }: InventarioViewProps) {
-  let lowStock = 0
-
-  products.forEach((p) => { if (p.stockActual <= 4) lowStock++ })
+  const lowStock = products.filter((p) => p.stockActual <= 4).length
 
   useEffect(() => {
     setLowStockCount(lowStock)
   }, [lowStock, setLowStockCount])
 
   return (
-    <section id="view-inventario" className="view-section hidden flex-1 overflow-y-auto p-4 lg:p-6 space-y-5">
+    <section id="view-inventario" className="view-section flex-1 overflow-y-auto p-4 lg:p-6 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Inventario de Fragancias</h2>
@@ -51,7 +49,6 @@ export function InventarioView({ products, setProducts, isAdmin, setLowStockCoun
             </thead>
             <tbody id="inventory-table-body" className="divide-y divide-slate-100">
               {products.map((p) => {
-                if (p.stockActual <= 4) lowStock++
                 return (
                   <tr
                     key={p.id}
@@ -72,7 +69,7 @@ export function InventarioView({ products, setProducts, isAdmin, setLowStockCoun
                     <td className="px-5 py-3.5 text-slate-600">{p.categoria}</td>
                     <td className="px-5 py-3.5 font-mono text-slate-500">{p.sku}</td>
                     {isAdmin && (
-                      <td className="px-5 py-3.5 text-slate-500">${p.costo?.toFixed(2) ?? '0.00'}</td>
+                      <td className="px-5 py-3.5 text-slate-500">${Number(p.costo ?? 0).toFixed(2)}</td>
                     )}
                     <td className="px-5 py-3.5 font-bold text-plum-900">${p.precioVenta.toFixed(2)}</td>
                     <td className="px-5 py-3.5 font-bold">{p.stockActual} uds.</td>
