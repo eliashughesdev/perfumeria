@@ -24,7 +24,7 @@ from app.dependencies import get_current_user, require_cajero_or_admin
 router = APIRouter(tags=["Caja y Arqueo"])
 
 
-@router.post("/apertura", response_model=MovimientoCajaOut, summary="Abrir turno de caja")
+@router.post("/apertura", response_model=MovimientoCajaOut, status_code=status.HTTP_201_CREATED, summary="Abrir turno de caja")
 def apertura_caja(
     monto: Decimal,
     db: Session = Depends(get_db),
