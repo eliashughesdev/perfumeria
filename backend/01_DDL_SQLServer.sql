@@ -1,5 +1,5 @@
 /********************************************************************************
- * L'ESSENCE POS - Sistema Integral para Perfumería
+ * NURFA ESSENCIAL PERFUMERÍA - Sistema Integral POS
  * Base de Datos: Microsoft SQL Server
  * Script DDL - Fase 1: Estructura inicial
  ********************************************************************************/
@@ -26,6 +26,7 @@ CREATE TABLE dbo.Usuarios (
     Email NVARCHAR(255) NOT NULL,
     PasswordHash NVARCHAR(500) NOT NULL,
     Rol NVARCHAR(50) NOT NULL DEFAULT 'ROLE_CAJERO',
+    Permisos NVARCHAR(MAX) NULL,
     Activo BIT NOT NULL DEFAULT 1,
     FechaCreacion DATETIME NOT NULL DEFAULT GETDATE(),
     FechaActualizacion DATETIME NULL,
@@ -48,7 +49,7 @@ GO
 
 CREATE TABLE dbo.ConfiguracionEmpresa (
     Id INT IDENTITY(1,1) NOT NULL,
-    NombreComercial NVARCHAR(200) NOT NULL DEFAULT 'L''ESSENCE PERFUMERÍA',
+    NombreComercial NVARCHAR(200) NOT NULL DEFAULT 'NURFA ESSENCIAL PERFUMERÍA',
     RazonSocial NVARCHAR(200) NOT NULL DEFAULT 'INVERSIONES AROMAS DEL CARIBE SRL',
     RNC NVARCHAR(50) NOT NULL DEFAULT '1-31-84920-5',
     Direccion NVARCHAR(500) NULL,
@@ -57,6 +58,7 @@ CREATE TABLE dbo.ConfiguracionEmpresa (
     Email NVARCHAR(255) NULL,
     SitioWeb NVARCHAR(255) NULL,
     RedesSociales NVARCHAR(500) NULL,
+    LogoUrl NVARCHAR(1000) NULL DEFAULT '/logo.jpeg',
     NCFSerie NVARCHAR(20) NOT NULL DEFAULT 'B02',
     NCFSecuenciaActual INT NOT NULL DEFAULT 0,
     ITBISPorcentaje DECIMAL(5,2) NOT NULL DEFAULT 18.00,
@@ -99,6 +101,36 @@ GO
 CREATE NONCLUSTERED INDEX IX_Productos_Categoria ON dbo.Productos (Categoria);
 CREATE NONCLUSTERED INDEX IX_Productos_Activo ON dbo.Productos (Activo);
 CREATE NONCLUSTERED INDEX IX_Productos_StockBajo ON dbo.Productos (StockActual) WHERE StockActual <= StockMinimo;
+GO
+
+/********************************************************************************
+ * TABLA: ConfiguracionFactura
+ * Diseño editable del ticket (textos, campos visibles y ancho)
+ ********************************************************************************/
+IF OBJECT_ID('dbo.ConfiguracionFactura', 'U') IS NOT NULL DROP TABLE dbo.ConfiguracionFactura;
+GO
+
+CREATE TABLE dbo.ConfiguracionFactura (
+    Id INT IDENTITY(1,1) NOT NULL,
+    TituloTicket NVARCHAR(200) NOT NULL DEFAULT 'NURFA ESSENCIAL PERFUMERÍA',
+    MensajeAgradecimiento NVARCHAR(500) NOT NULL DEFAULT '¡GRACIAS POR PREFERIRNOS!',
+    MensajeGarantia NVARCHAR(500) NOT NULL DEFAULT 'Conserve este ticket para fines de garantía.',
+    MensajePolitica NVARCHAR(500) NOT NULL DEFAULT 'No se aceptan devoluciones en perfumes destapados o sin su celofán original.',
+    MensajePie NVARCHAR(500) NULL,
+    RedSocial NVARCHAR(100) NULL DEFAULT '@nurfaessencialperfumeria',
+    PrefijoFactura NVARCHAR(20) NOT NULL DEFAULT 'FAC',
+    AnchoTicketMm INT NOT NULL DEFAULT 80,
+    MostrarLogo BIT NOT NULL DEFAULT 1,
+    MostrarSKU BIT NOT NULL DEFAULT 1,
+    MostrarCajero BIT NOT NULL DEFAULT 1,
+    MostrarCliente BIT NOT NULL DEFAULT 1,
+    MostrarNCF BIT NOT NULL DEFAULT 1,
+    MostrarCodigoBarras BIT NOT NULL DEFAULT 1,
+    Activo BIT NOT NULL DEFAULT 1,
+    FechaCreacion DATETIME NOT NULL DEFAULT GETDATE(),
+    FechaActualizacion DATETIME NULL,
+    CONSTRAINT PK_ConfiguracionFactura PRIMARY KEY CLUSTERED (Id)
+);
 GO
 
 /********************************************************************************
@@ -181,6 +213,8 @@ CREATE TABLE dbo.MovimientosCaja (
     Concepto NVARCHAR(500) NOT NULL,
     MetodoPago NVARCHAR(50) NULL,
     Monto DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    MontoContado DECIMAL(18,2) NULL,
+    Diferencia DECIMAL(18,2) NULL,
     IdUsuario INT NOT NULL,
     IdVenta INT NULL,
     FechaMovimiento DATETIME NOT NULL DEFAULT GETDATE(),
@@ -201,10 +235,10 @@ GO
  ********************************************************************************/
 
 -- Usuario Administrador por defecto (contraseña: Admin123!)
-INSERT INTO dbo.Usuarios (Nombre, Email, PasswordHash, Rol, Activo)
+INSERT INTO dbo.Usuarios (Nombre, Email, PasswordHash, Rol, Permisos, Activo)
 VALUES 
-    ('Ana Gómez', 'ana@lessence.com', '$2b$12$LQv3c1yqBWVHxEg0dY5kdOVwRpQy7y6R9f6n7s2k0j3f8h5a1m4e6', 'ROLE_ADMIN', 1),
-    ('Carlos Méndez', 'caja1@lessence.com', '$2b$12$LQv3c1yqBWVHxEg0dY5kdOVwRpQy7y6R9f6n7s2k0j3f8h5a1m4e6', 'ROLE_CAJERO', 1);
+    ('Administradora Nurfa', 'admin@nurfaessencial.com', '$2b$12$LQv3c1yqBWVHxEg0dY5kdOVwRpQy7y6R9f6n7s2k0j3f8h5a1m4e6', 'ROLE_ADMIN', 'pos.vender,pos.descuentos,inventario.ver,inventario.costos,inventario.editar,caja.movimientos,caja.apertura_cierre,contabilidad.ver,factura.editar,factura.configurar,usuarios.gestionar', 1),
+    ('Cajero Nurfa', 'caja1@nurfaessencial.com', '$2b$12$LQv3c1yqBWVHxEg0dY5kdOVwRpQy7y6R9f6n7s2k0j3f8h5a1m4e6', 'ROLE_CAJERO', 'pos.vender,pos.descuentos,inventario.ver,caja.movimientos', 1);
 GO
 
 -- Configuración de empresa con datos fiscales del prototipo
@@ -213,18 +247,36 @@ INSERT INTO dbo.ConfiguracionEmpresa (
     NCFSerie, NCFSecuenciaActual, ITBISPorcentaje, MonedaSimbolo, Activo
 )
 VALUES (
-    'L''ESSENCE PERFUMERÍA',
-    'INVERSIONES AROMAS DEL CARIBE SRL',
+    'NURFA ESSENCIAL PERFUMERÍA',
+    'NURFA ESSENCIAL SRL',
     '1-31-84920-5',
     'Av. Independencia #104, Local 2B',
     'San Pedro de Macorís',
     '(809) 529-4410',
-    'contacto@lessence.com',
+    'contacto@nurfaessencial.com',
     'B02',
-    41,
+    0,
     18.00,
     '$',
     1
+);
+GO
+
+INSERT INTO dbo.ConfiguracionFactura (
+    TituloTicket, MensajeAgradecimiento, MensajeGarantia, MensajePolitica, MensajePie,
+    RedSocial, PrefijoFactura, AnchoTicketMm, MostrarLogo, MostrarSKU, MostrarCajero,
+    MostrarCliente, MostrarNCF, MostrarCodigoBarras, Activo
+)
+VALUES (
+    'NURFA ESSENCIAL PERFUMERÍA',
+    '¡GRACIAS POR PREFERIRNOS!',
+    'Conserve este ticket para fines de garantía.',
+    'No se aceptan devoluciones en perfumes destapados o sin su celofán original.',
+    'Nurfa Essencial Perfumería · Elegancia que se recuerda',
+    '@nurfaessencialperfumeria',
+    'FAC',
+    80,
+    1, 1, 1, 1, 1, 1, 1
 );
 GO
 

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Receipt, CreditCard, X, ShoppingBag } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import type { FormEvent } from 'react'
+import { Loader2, Moon, Sun } from 'lucide-react'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Toast } from '@/components/layout/Toast'
@@ -12,110 +13,145 @@ import { CartPanel } from '@/components/pos/CartPanel'
 import { CajaView } from '@/components/caja/CajaView'
 import { InventarioView } from '@/components/inventario/InventarioView'
 import { ContabilidadView } from '@/components/contabilidad/ContabilidadView'
+import { FacturasView } from '@/components/facturas/FacturasView'
 import { UsuariosView } from '@/components/usuarios/UsuariosView'
+import { ConfiguracionView } from '@/components/configuracion/ConfiguracionView'
+import { InstallPWA } from '@/components/pwa/InstallPWA'
 import { useAuth } from '@/contexts/AuthContext'
-import { productService, saleService } from '@/services/api'
-import type { DetalleVenta } from '@/types'
+import { useTheme } from '@/contexts/ThemeContext'
+import { configService, productService, saleService } from '@/services/api'
+import { mapEmpresa, mapInvoice, mapProducto, mapVenta } from '@/services/mappers'
+import type { ConfiguracionEmpresa, DetalleVenta, Producto } from '@/types'
 
-type ViewName = 'pos' | 'caja' | 'inventario' | 'contabilidad' | 'usuarios'
+type ViewName = 'pos' | 'caja' | 'inventario' | 'facturas' | 'contabilidad' | 'usuarios' | 'configuracion'
+type PaymentMethod = 'Efectivo' | 'Tarjeta' | 'Transferencia'
 
 interface CartItem extends DetalleVenta {
   importe: number
 }
 
+const VIEW_PERMISSIONS: Partial<Record<ViewName, 'pos.vender' | 'inventario.ver' | 'contabilidad.ver' | 'usuarios.gestionar' | 'factura.editar' | 'factura.configurar'>> = {
+  pos: 'pos.vender',
+  inventario: 'inventario.ver',
+  facturas: 'factura.editar',
+  contabilidad: 'contabilidad.ver',
+  usuarios: 'usuarios.gestionar',
+  configuracion: 'factura.configurar',
+}
+
 function App() {
+  const { token, login, isLoading, isAuthenticated, hasPermission } = useAuth()
+  const { theme, toggleTheme } = useTheme()
+
   const [currentView, setCurrentView] = useState<ViewName>('pos')
-  const [role, setRole] = useState<'admin' | 'cajero'>('admin')
   const [cart, setCart] = useState<CartItem[]>([])
   const [currentCategory, setCurrentCategory] = useState('Todos')
   const [searchQuery, setSearchQuery] = useState('')
   const [discountPct, setDiscountPct] = useState(0)
   const [clientName, setClientName] = useState('')
-  const [invoiceSequence, setInvoiceSequence] = useState(42)
   const [toast, setToast] = useState({ message: '', visible: false })
-  const [products, setProducts] = useState<any[]>([])
+  const [products, setProducts] = useState<Producto[]>([])
+  const [company, setCompany] = useState<ConfiguracionEmpresa | null>(null)
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isNewProductOpen, setIsNewProductOpen] = useState(false)
-  const [detailProduct, setDetailProduct] = useState<any | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<'Efectivo' | 'Tarjeta' | 'Transferencia'>('Efectivo')
+  const [detailProduct, setDetailProduct] = useState<Producto | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Efectivo')
   const [cashReceived, setCashReceived] = useState(0)
-  const [lowStockCount, setLowStockCount] = useState(0)
+  const [saleBusy, setSaleBusy] = useState(false)
 
-  const { usuario, token, login, isLoading, isAuthenticated } = useAuth()
-  const [loginEmail, setLoginEmail] = useState('admin@lessence.com')
+  const [loginEmail, setLoginEmail] = useState('admin@nurfaessencial.com')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loginBusy, setLoginBusy] = useState(false)
 
-  useEffect(() => {
-    if (usuario) {
-      setRole(usuario.rol === 'ROLE_ADMIN' ? 'admin' : 'cajero')
-    }
-  }, [usuario])
+  const taxRate = company?.itbisPorcentaje ?? 18
+  const canDiscount = hasPermission('pos.descuentos')
+  const canEditProducts = hasPermission('inventario.editar')
+  const canViewCost = hasPermission('inventario.costos')
 
-  const mapProduct = (p: any) => ({
-    id: p.Id ?? p.id,
-    sku: p.SKU ?? p.sku,
-    nombre: p.Nombre ?? p.nombre,
-    descripcion: p.Descripcion ?? p.descripcion,
-    categoria: p.Categoria ?? p.categoria,
-            costo: p.Costo != null || p.costo != null ? Number(p.Costo ?? p.costo) : null,
-    precioVenta: Number(p.PrecioVenta ?? p.precioVenta ?? 0),
-    stockActual: p.StockActual ?? p.stockActual ?? 0,
-    stockMinimo: p.StockMinimo ?? p.stockMinimo ?? 0,
-    imagenUrl: p.ImagenUrl ?? p.imagenUrl,
-    activo: p.Activo ?? p.activo ?? true,
-  })
+  const showToast = useCallback((message: string) => {
+    setToast({ message, visible: true })
+    setTimeout(() => setToast((current) => ({ ...current, visible: false })), 3200)
+  }, [])
 
-  const loadProducts = useCallback(() => {
+  const loadProducts = useCallback(async () => {
     if (!token) return
-    productService
-      .list()
-      .then((res) => setProducts((res.data as any[]).map(mapProduct)))
-      .catch((err) => console.error('Error cargando productos', err))
+    try {
+      const response = await productService.list()
+      setProducts((response.data as any[]).map(mapProducto))
+    } catch (error) {
+      console.error('Error cargando productos', error)
+      showToast('No se pudo cargar el catálogo.')
+    }
+  }, [token, showToast])
+
+  const loadCompany = useCallback(async () => {
+    if (!token) return
+    try {
+      const response = await configService.get()
+      setCompany(mapEmpresa(response.data as any))
+    } catch (error) {
+      console.error('Error cargando configuración', error)
+    }
   }, [token])
 
   useEffect(() => {
     loadProducts()
-  }, [loadProducts])
+    loadCompany()
+  }, [loadProducts, loadCompany])
 
   useEffect(() => {
-    setLowStockCount(products.filter((p) => p.stockActual <= (p.stockMinimo || 4)).length)
-  }, [products])
+    if (!canDiscount) setDiscountPct(0)
+  }, [canDiscount])
 
-  const showToast = useCallback((msg: string) => {
-    setToast({ message: msg, visible: true })
-    setTimeout(() => setToast((t) => ({ ...t, visible: false })), 3200)
-  }, [])
+  useEffect(() => {
+    const permission = VIEW_PERMISSIONS[currentView]
+    if (permission && !hasPermission(permission)) {
+      setCurrentView('pos')
+    }
+  }, [currentView, hasPermission])
 
-  const filteredProducts = products.filter((p: any) => {
-    const matchCat = currentCategory === 'Todos' || p.categoria === currentCategory
-    const q = searchQuery.toLowerCase()
-    const matchQuery =
-      p.nombre.toLowerCase().includes(q) ||
-      p.sku.toLowerCase().includes(q) ||
-      (p.descripcion && p.descripcion.toLowerCase().includes(q))
-    return matchCat && matchQuery
-  })
+  const lowStockCount = useMemo(
+    () => products.filter((product) => product.stockActual <= product.stockMinimo).length,
+    [products],
+  )
+
+  const filteredProducts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    return products.filter((product) => {
+      const matchesCategory = currentCategory === 'Todos' || product.categoria === currentCategory
+      const matchesQuery =
+        !query ||
+        product.nombre.toLowerCase().includes(query) ||
+        product.sku.toLowerCase().includes(query) ||
+        (product.descripcion ?? '').toLowerCase().includes(query)
+      return matchesCategory && matchesQuery
+    })
+  }, [products, currentCategory, searchQuery])
 
   const addToCart = (productId: number) => {
-    const product = products.find((p: any) => p.id === productId)
-    if (!product || product.stockActual <= 0) return
-    setCart((prev) => {
-      const existing = prev.find((item) => item.idProducto === productId)
+    const product = products.find((item) => item.id === productId)
+    if (!product || product.stockActual <= 0) {
+      showToast('Producto sin existencia disponible.')
+      return
+    }
+    setCart((current) => {
+      const existing = current.find((item) => item.idProducto === productId)
       if (existing) {
-        if (existing.cantidad < product.stockActual!) {
-          return prev.map((item) =>
-            item.idProducto === productId ? { ...item, cantidad: item.cantidad + 1, importe: item.precioUnitario * (item.cantidad + 1) } : item
-          )
+        if (existing.cantidad >= product.stockActual) {
+          showToast('Stock máximo alcanzado para este perfume.')
+          return current
         }
-        showToast('Stock máximo alcanzado para este perfume.')
-        return prev
+        return current.map((item) =>
+          item.idProducto === productId
+            ? { ...item, cantidad: item.cantidad + 1, importe: item.precioUnitario * (item.cantidad + 1) }
+            : item,
+        )
       }
       showToast(`${product.nombre} agregado al ticket.`)
-      const nuevo: CartItem = {
+      const item: CartItem = {
         idProducto: product.id,
         cantidad: 1,
         precioUnitario: product.precioVenta,
@@ -123,25 +159,21 @@ function App() {
         nombreProducto: product.nombre,
         importe: product.precioVenta,
       }
-      return [...prev, nuevo]
+      return [...current, item]
     })
   }
 
   const updateQty = (productId: number, delta: number) => {
-    setCart((prev) => {
-      const idx = prev.findIndex((item) => item.idProducto === productId)
-      if (idx === -1) return prev
-      const product = products.find((p: any) => p.id === productId)
-      const newQty = prev[idx].cantidad + delta
-      if (newQty <= 0) {
-        return prev.filter((item) => item.idProducto !== productId)
-      }
-      if (newQty <= (product?.stockActual ?? 0)) {
-        return prev.map((item, i) =>
-          i === idx ? { ...item, cantidad: newQty, importe: item.precioUnitario * newQty } : item
-        )
-      }
-      return prev
+    setCart((current) => {
+      const index = current.findIndex((item) => item.idProducto === productId)
+      if (index === -1) return current
+      const product = products.find((item) => item.id === productId)
+      const quantity = current[index].cantidad + delta
+      if (quantity <= 0) return current.filter((item) => item.idProducto !== productId)
+      if (quantity > (product?.stockActual ?? 0)) return current
+      return current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, cantidad: quantity, importe: item.precioUnitario * quantity } : item,
+      )
     })
   }
 
@@ -151,14 +183,14 @@ function App() {
     setDiscountPct(0)
   }
 
-  const calculateTotals = () => {
+  const calculateTotals = useCallback(() => {
     const subtotal = cart.reduce((sum, item) => sum + item.precioUnitario * item.cantidad, 0)
     const discountAmount = subtotal * (discountPct / 100)
     const taxedBase = subtotal - discountAmount
-    const tax = taxedBase * 0.18
+    const tax = taxedBase * (taxRate / 100)
     const total = taxedBase + tax
     return { subtotal, discountAmount, tax, total }
-  }
+  }, [cart, discountPct, taxRate])
 
   const openCheckoutModal = () => {
     const { total } = calculateTotals()
@@ -167,139 +199,160 @@ function App() {
   }
 
   const completeSale = async () => {
-    const { subtotal, discountAmount, tax, total } = calculateTotals()
-    const venta: any = {
-      Cliente: clientName || 'CONSUMIDOR FINAL',
-      MetodoPago: paymentMethod,
-      DescuentoPorcentaje: discountPct,
-      EfectivoRecibido: paymentMethod === 'Efectivo' ? cashReceived : undefined,
-      Detalles: cart.map((item: any) => ({
-        IdProducto: item.idProducto,
-        SKU: item.sku,
-        NombreProducto: item.nombreProducto,
-        Cantidad: item.cantidad,
-        PrecioUnitario: item.precioUnitario,
-      })),
-    }
-
+    setSaleBusy(true)
     try {
-      const res = await saleService.create(venta)
-      const ventaId = (res.data as any).Id ?? (res.data as any).id
-      const invoiceRes = await saleService.invoice(ventaId)
-      const raw = invoiceRes.data as any
-      const invoice = {
-        empresa: {
-          nombre: raw.empresa?.nombre,
-          razonSocial: raw.empresa?.razonSocial ?? raw.empresa?.razon_social,
-          rnc: raw.empresa?.rnc,
-          direccion: raw.empresa?.direccion,
-          ciudad: raw.empresa?.ciudad,
-          telefono: raw.empresa?.telefono,
-        },
-        factura: {
-          numero: raw.factura?.numero,
-          ncf: raw.factura?.ncf,
-          fecha: raw.factura?.fecha,
-          cajero: raw.factura?.cajero,
-          cliente: raw.factura?.cliente,
-          metodoPago: raw.factura?.metodoPago ?? raw.factura?.metodo_pago,
-        },
-        items: (raw.items || []).map((item: any) => ({
-          cantidad: item.cantidad,
-          sku: item.sku,
-          nombre: item.nombre,
-          precioUnitario: Number(item.precioUnitario ?? item.precio_unitario ?? 0),
-          importe: Number(item.importe ?? 0),
+      const payload = {
+        Cliente: clientName || 'CONSUMIDOR FINAL',
+        MetodoPago: paymentMethod,
+        DescuentoPorcentaje: discountPct,
+        EfectivoRecibido: paymentMethod === 'Efectivo' ? cashReceived : undefined,
+        Detalles: cart.map((item) => ({
+          IdProducto: item.idProducto,
+          SKU: item.sku,
+          NombreProducto: item.nombreProducto,
+          Cantidad: item.cantidad,
+          PrecioUnitario: item.precioUnitario,
         })),
-        totales: {
-          subtotal: Number(raw.totales?.subtotal ?? 0),
-          descuento: Number(raw.totales?.descuento ?? 0),
-          itbis: Number(raw.totales?.itbis ?? 0),
-          total: Number(raw.totales?.total ?? 0),
-          efectivoRecibido: raw.totales?.efectivoRecibido ?? raw.totales?.efectivo_recibido,
-          cambio: raw.totales?.cambio,
-        },
       }
+
+      const saleResponse = await saleService.create(payload as any)
+      const sale = mapVenta(saleResponse.data as any)
+      const invoiceResponse = await saleService.invoice(sale.id)
+      const invoice = mapInvoice(invoiceResponse.data as any)
 
       sessionStorage.setItem('last_invoice', JSON.stringify(invoice))
       setIsCheckoutOpen(false)
-      setCart([])
-      setClientName('')
-      setDiscountPct(0)
-      setInvoiceSequence((s) => s + 1)
+      clearCart()
       setIsInvoiceOpen(true)
-      loadProducts()
+      await loadProducts()
       showToast('Venta registrada y ticket generado.')
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail
       showToast(typeof detail === 'string' ? detail : 'Error al procesar la venta.')
-      console.error(err)
+      console.error(error)
+    } finally {
+      setSaleBusy(false)
     }
   }
 
-  const calculateChange = () => {
-    const { total } = calculateTotals()
-    return Math.max(0, cashReceived - total)
-  }
+  const openInvoicePreview = useCallback(async (saleId: number) => {
+    try {
+      const response = await saleService.invoice(saleId)
+      sessionStorage.setItem('last_invoice', JSON.stringify(mapInvoice(response.data as any)))
+      setIsInvoiceOpen(true)
+    } catch {
+      showToast('No se pudo cargar la factura para imprimir.')
+    }
+  }, [showToast])
 
-  const openProductDetail = (id: number) => {
-    const p = products.find((item: any) => item.id === id)
-    if (p) {
-      setDetailProduct(p)
+  const calculateChange = () => Math.max(0, cashReceived - calculateTotals().total)
+
+  const openProductDetail = (productId: number) => {
+    const product = products.find((item) => item.id === productId)
+    if (product) {
+      setDetailProduct(product)
       setIsDetailOpen(true)
     }
   }
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const updateProduct = async (productId: number, data: Partial<Producto>) => {
+    try {
+      const response = await productService.update(productId, data)
+      const updated = mapProducto(response.data as any)
+      setProducts((current) => current.map((item) => (item.id === productId ? updated : item)))
+      setDetailProduct(updated)
+      showToast('Producto actualizado.')
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail || 'No se pudo actualizar el producto.')
+      throw error
+    }
+  }
+
+  const deleteProduct = async (product: Producto) => {
+    try {
+      await productService.remove(product.id)
+      setProducts((current) => current.filter((item) => item.id !== product.id))
+      if (detailProduct?.id === product.id) setIsDetailOpen(false)
+      showToast('Producto desactivado del catálogo.')
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail || 'No se pudo desactivar el producto.')
+    }
+  }
+
+  const handleLogin = async (event: FormEvent) => {
+    event.preventDefault()
     setLoginBusy(true)
     setLoginError('')
     try {
-      await login({ email: loginEmail, password: loginPassword })
-    } catch {
-      setLoginError('Credenciales inválidas')
+      await login({ email: loginEmail.trim().toLowerCase(), password: loginPassword })
+    } catch (error: any) {
+      setLoginError(error?.response?.data?.detail || 'No se pudo conectar con el servidor. Verifica que el backend esté activo.')
     } finally {
       setLoginBusy(false)
     }
   }
 
   if (isLoading) {
-    return <div className="h-screen flex items-center justify-center text-slate-500 text-sm">Cargando sesión...</div>
+    return (
+      <div className="h-screen flex items-center justify-center bg-noir-950 text-champagne-200 text-sm">
+        <Loader2 className="w-5 h-5 animate-spin mr-2" /> Cargando sesión...
+      </div>
+    )
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="h-screen flex items-center justify-center bg-plum-950 px-4">
-        <form onSubmit={handleLogin} className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl space-y-4">
-          <div>
-            <h1 className="font-serif text-2xl font-bold text-plum-900">L'ESSENCE</h1>
-            <p className="text-xs text-slate-500 mt-1">Inicia sesión para abrir el punto de venta</p>
+      <div className="min-h-screen flex items-center justify-center bg-noir-950 px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(223,194,138,0.16),_transparent_45%)]" />
+        <button
+          onClick={toggleTheme}
+          className="absolute top-5 right-5 p-2.5 rounded-xl bg-noir-900 border border-noir-800 text-champagne-300 hover:bg-noir-800"
+          aria-label="Cambiar tema"
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
+        <form onSubmit={handleLogin} className="relative w-full max-w-sm bg-white rounded-3xl p-7 shadow-2xl space-y-5 border border-champagne-200">
+          <div className="text-center">
+            <img src="/logo.jpeg" alt="Nurfa Essencial" className="w-20 h-20 rounded-full object-cover mx-auto ring-2 ring-champagne-300 shadow-lg" />
+            <h1 className="font-serif text-2xl font-bold text-noir-950 mt-3 tracking-[0.12em]">NURFA ESSENCIAL</h1>
+            <p className="text-[10px] uppercase tracking-[0.35em] text-champagne-700 mt-1">Perfumería</p>
+            <p className="text-xs text-slate-500 mt-3">Punto de venta y administración boutique</p>
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700">Correo</label>
+            <label className="text-[11px] font-semibold text-slate-600">Correo</label>
             <input
               type="email"
               value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-              className="mt-1 w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm"
+              onChange={(event) => setLoginEmail(event.target.value)}
+              className="mt-1 w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-noir-800"
               required
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-700">Contraseña</label>
+            <label className="text-[11px] font-semibold text-slate-600">Contraseña</label>
             <input
               type="password"
               value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              className="mt-1 w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm"
+              onChange={(event) => setLoginPassword(event.target.value)}
+              className="mt-1 w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-noir-800"
+              placeholder="••••••••"
               required
             />
           </div>
           {loginError && <p className="text-xs text-rose-600">{loginError}</p>}
-          <button type="submit" disabled={loginBusy} className="w-full py-3 rounded-xl bg-plum-900 text-white text-sm font-bold disabled:opacity-60">
-            {loginBusy ? 'Entrando...' : 'Entrar'}
+          <button
+            type="submit"
+            disabled={loginBusy}
+            className="w-full py-3 rounded-xl bg-noir-950 hover:bg-noir-800 text-white text-sm font-bold disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {loginBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loginBusy ? 'Entrando...' : 'Entrar al sistema'}
           </button>
-          <p className="text-[11px] text-slate-400">Admin: admin@lessence.com · Cajero: caja1@lessence.com · Admin123!</p>
+          <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+            Admin: admin@nurfaessencial.com · Admin123!
+            <br />
+            Cajero: caja1@nurfaessencial.com · Admin123!
+          </p>
         </form>
       </div>
     )
@@ -308,17 +361,11 @@ function App() {
   return (
     <>
       <div className="flex flex-col overflow-hidden relative h-screen">
-        <Toast message={toast.message} visible={toast.visible} onClose={() => setToast((t) => ({ ...t, visible: false }))} />
-
+        <Toast message={toast.message} visible={toast.visible} onClose={() => setToast((current) => ({ ...current, visible: false }))} />
         <Header />
 
         <div className="flex-1 flex overflow-hidden relative">
-          <Sidebar
-            currentView={currentView}
-            setCurrentView={setCurrentView as (key: string) => void}
-            isAdmin={role === 'admin'}
-            lowStockCount={lowStockCount}
-          />
+          <Sidebar currentView={currentView} setCurrentView={(key) => setCurrentView(key as ViewName)} lowStockCount={lowStockCount} />
 
           <main className="flex-1 overflow-hidden flex flex-col lg:flex-row relative">
             {currentView === 'pos' && (
@@ -330,6 +377,7 @@ function App() {
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
                   addToCart={addToCart}
+                  openProductDetail={openProductDetail}
                 />
 
                 <CartPanel
@@ -342,23 +390,39 @@ function App() {
                   setClientName={setClientName}
                   openCheckoutModal={openCheckoutModal}
                   calculateTotals={calculateTotals}
+                  taxRate={taxRate}
+                  canDiscount={canDiscount}
                 />
               </>
             )}
 
             {currentView === 'caja' && <CajaView showToast={showToast} />}
+
             {currentView === 'inventario' && (
               <InventarioView
                 products={products}
-                setProducts={setProducts}
-                isAdmin={role === 'admin'}
-                setLowStockCount={setLowStockCount}
+                canCreate={canEditProducts}
+                canEdit={canEditProducts}
+                canViewCost={canViewCost}
                 openNewProductModal={() => setIsNewProductOpen(true)}
                 openProductDetail={openProductDetail}
+                onDelete={deleteProduct}
               />
             )}
-            {currentView === 'contabilidad' && <ContabilidadView isAdmin={role === 'admin'} showToast={showToast} />}
-            {currentView === 'usuarios' && <UsuariosView isAdmin={role === 'admin'} showToast={showToast} />}
+
+            {currentView === 'facturas' && hasPermission('factura.editar') && (
+              <FacturasView products={products} taxRate={taxRate} showToast={showToast} onPreview={openInvoicePreview} />
+            )}
+
+            {currentView === 'contabilidad' && hasPermission('contabilidad.ver') && (
+              <ContabilidadView products={products} taxRate={taxRate} showToast={showToast} />
+            )}
+
+            {currentView === 'usuarios' && hasPermission('usuarios.gestionar') && <UsuariosView showToast={showToast} />}
+
+            {currentView === 'configuracion' && hasPermission('factura.configurar') && (
+              <ConfiguracionView showToast={showToast} onCompanyUpdated={setCompany} />
+            )}
 
             <CheckoutModal
               isOpen={isCheckoutOpen}
@@ -370,53 +434,51 @@ function App() {
               setCashReceived={setCashReceived}
               calculateChange={calculateChange}
               onComplete={completeSale}
+              isProcessing={saleBusy}
             />
 
-            <InvoicePreviewModal
-              isOpen={isInvoiceOpen}
-              onClose={() => setIsInvoiceOpen(false)}
-            />
+            <InvoicePreviewModal isOpen={isInvoiceOpen} onClose={() => setIsInvoiceOpen(false)} />
 
             <ProductDetailModal
               isOpen={isDetailOpen}
               product={detailProduct}
               onClose={() => setIsDetailOpen(false)}
-              isAdmin={role === 'admin'}
-              onAddToCart={(id: number) => {
+              canEdit={canEditProducts}
+              canViewCost={canViewCost}
+              onUpdate={updateProduct}
+              onAddToCart={(id) => {
                 addToCart(id)
                 setIsDetailOpen(false)
-                showToast(`${detailProduct?.nombre} agregado al ticket.`)
               }}
-              isRoleCajero={role !== 'admin'}
             />
 
             <NewProductModal
               isOpen={isNewProductOpen}
               onClose={() => setIsNewProductOpen(false)}
-              onSave={async (newProd: any) => {
+              canCreate={canEditProducts}
+              onSave={async (newProduct) => {
                 try {
-                  const res = await productService.create({
-                    SKU: newProd.sku,
-                    Nombre: newProd.name,
-                    Descripcion: newProd.description,
-                    Categoria: newProd.category === 'Árabes / Nicho' ? 'Nicho' : newProd.category,
-                    Costo: newProd.cost,
-                    PrecioVenta: newProd.price,
-                    StockActual: newProd.stock,
-                    StockMinimo: 4,
-                    ImagenUrl: newProd.image && String(newProd.image).length < 900 ? newProd.image : null,
+                  const response = await productService.create({
+                    SKU: newProduct.sku,
+                    Nombre: newProduct.name,
+                    Descripcion: newProduct.description,
+                    Categoria: newProduct.category,
+                    Costo: newProduct.cost,
+                    PrecioVenta: newProduct.price,
+                    StockActual: newProduct.stock,
+                    StockMinimo: newProduct.minStock,
+                    ImagenUrl: newProduct.image,
                     Activo: true,
                   } as any)
-                  const saved = mapProduct(res.data)
-                  if (newProd.image) saved.imagenUrl = newProd.image
-                  setProducts((prev: any[]) => [saved, ...prev])
+                  const saved = mapProducto(response.data as any)
+                  setProducts((current) => [saved, ...current])
                   setIsNewProductOpen(false)
                   showToast('Perfume registrado en el catálogo.')
-                } catch (err: any) {
-                  showToast(err?.response?.data?.detail || 'No se pudo guardar el perfume.')
+                } catch (error: any) {
+                  showToast(error?.response?.data?.detail || 'No se pudo guardar el perfume.')
+                  throw error
                 }
               }}
-              isAdmin={role === 'admin'}
             />
           </main>
         </div>

@@ -5,7 +5,7 @@ Tablas: Usuarios, ConfiguracionEmpresa, Productos, Ventas, DetalleVentas, Movimi
 
 from sqlalchemy import Column, Integer, String, Numeric, DateTime, Boolean, ForeignKey, Text, CheckConstraint
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from datetime import datetime
 from app.database import Base
 
 
@@ -17,8 +17,9 @@ class Usuario(Base):
     Email = Column(String(255), unique=True, nullable=False, index=True)
     PasswordHash = Column(String(500), nullable=False)
     Rol = Column(String(50), nullable=False, default="ROLE_CAJERO", index=True)
+    Permisos = Column(Text, nullable=True)
     Activo = Column(Boolean, default=True, nullable=False)
-    FechaCreacion = Column(DateTime, server_default=func.now())
+    FechaCreacion = Column(DateTime, default=datetime.now)
     FechaActualizacion = Column(DateTime, nullable=True)
 
     __table_args__ = (
@@ -33,8 +34,8 @@ class ConfiguracionEmpresa(Base):
     __tablename__ = "ConfiguracionEmpresa"
 
     Id = Column(Integer, primary_key=True, index=True)
-    NombreComercial = Column(String(200), nullable=False, default="L'ESSENCE PERFUMERÍA")
-    RazonSocial = Column(String(200), nullable=False, default="INVERSIONES AROMAS DEL CARIBE SRL")
+    NombreComercial = Column(String(200), nullable=False, default="NURFA ESSENCIAL PERFUMERÍA")
+    RazonSocial = Column(String(200), nullable=False, default="NURFA ESSENCIAL SRL")
     RNC = Column(String(50), nullable=False, default="1-31-84920-5")
     Direccion = Column(String(500), nullable=True)
     Ciudad = Column(String(100), nullable=True)
@@ -42,12 +43,36 @@ class ConfiguracionEmpresa(Base):
     Email = Column(String(255), nullable=True)
     SitioWeb = Column(String(255), nullable=True)
     RedesSociales = Column(String(500), nullable=True)
+    LogoUrl = Column(String(1000), nullable=True, default="/logo.jpeg")
     NCFSerie = Column(String(20), nullable=False, default="B02")
     NCFSecuenciaActual = Column(Integer, nullable=False, default=0)
     ITBISPorcentaje = Column(Numeric(5, 2), nullable=False, default=18.00)
     MonedaSimbolo = Column(String(10), nullable=False, default="$")
     Activo = Column(Boolean, default=True, nullable=False)
-    FechaCreacion = Column(DateTime, server_default=func.now())
+    FechaCreacion = Column(DateTime, default=datetime.now)
+    FechaActualizacion = Column(DateTime, nullable=True)
+
+
+class ConfiguracionFactura(Base):
+    __tablename__ = "ConfiguracionFactura"
+
+    Id = Column(Integer, primary_key=True, index=True)
+    TituloTicket = Column(String(200), nullable=False, default="NURFA ESSENCIAL PERFUMERÍA")
+    MensajeAgradecimiento = Column(String(500), nullable=False, default="¡GRACIAS POR PREFERIRNOS!")
+    MensajeGarantia = Column(String(500), nullable=False, default="Conserve este ticket para fines de garantía.")
+    MensajePolitica = Column(String(500), nullable=False, default="No se aceptan devoluciones en perfumes destapados o sin su celofán original.")
+    MensajePie = Column(String(500), nullable=True)
+    RedSocial = Column(String(100), nullable=True, default="@nurfaessencialperfumeria")
+    PrefijoFactura = Column(String(20), nullable=False, default="FAC")
+    AnchoTicketMm = Column(Integer, nullable=False, default=80)
+    MostrarLogo = Column(Boolean, nullable=False, default=True)
+    MostrarSKU = Column(Boolean, nullable=False, default=True)
+    MostrarCajero = Column(Boolean, nullable=False, default=True)
+    MostrarCliente = Column(Boolean, nullable=False, default=True)
+    MostrarNCF = Column(Boolean, nullable=False, default=True)
+    MostrarCodigoBarras = Column(Boolean, nullable=False, default=True)
+    Activo = Column(Boolean, default=True, nullable=False)
+    FechaCreacion = Column(DateTime, default=datetime.now)
     FechaActualizacion = Column(DateTime, nullable=True)
 
 
@@ -65,7 +90,7 @@ class Producto(Base):
     StockMinimo = Column(Integer, nullable=False, default=4)
     ImagenUrl = Column(String(1000), nullable=True)
     Activo = Column(Boolean, default=True, nullable=False, index=True)
-    FechaCreacion = Column(DateTime, server_default=func.now())
+    FechaCreacion = Column(DateTime, default=datetime.now)
     FechaActualizacion = Column(DateTime, nullable=True)
 
     __table_args__ = (
@@ -82,7 +107,7 @@ class Venta(Base):
     Id = Column(Integer, primary_key=True, index=True)
     NumeroFactura = Column(String(50), unique=True, nullable=False, index=True)
     NCF = Column(String(50), nullable=True)
-    FechaVenta = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+    FechaVenta = Column(DateTime, nullable=False, default=datetime.now, index=True)
     IdUsuario = Column(Integer, ForeignKey("Usuarios.Id"), nullable=False, index=True)
     Cliente = Column(String(200), nullable=False, default="CONSUMIDOR FINAL")
     MetodoPago = Column(String(50), nullable=False, default="Efectivo", index=True)
@@ -95,7 +120,7 @@ class Venta(Base):
     EfectivoRecibido = Column(Numeric(18, 2), nullable=True)
     Cambio = Column(Numeric(18, 2), nullable=True)
     Activo = Column(Boolean, default=True, nullable=False)
-    FechaCreacion = Column(DateTime, server_default=func.now())
+    FechaCreacion = Column(DateTime, default=datetime.now)
 
     __table_args__ = (
         CheckConstraint("MetodoPago IN ('Efectivo', 'Tarjeta', 'Transferencia')", name="CHK_Ventas_MetodoPago"),
@@ -136,9 +161,11 @@ class MovimientoCaja(Base):
     Concepto = Column(String(500), nullable=False)
     MetodoPago = Column(String(50), nullable=True)
     Monto = Column(Numeric(18, 2), nullable=False, default=0.00)
+    MontoContado = Column(Numeric(18, 2), nullable=True)
+    Diferencia = Column(Numeric(18, 2), nullable=True)
     IdUsuario = Column(Integer, ForeignKey("Usuarios.Id"), nullable=False, index=True)
     IdVenta = Column(Integer, ForeignKey("Ventas.Id"), nullable=True)
-    FechaMovimiento = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+    FechaMovimiento = Column(DateTime, nullable=False, default=datetime.now, index=True)
 
     __table_args__ = (
         CheckConstraint("Tipo IN ('Apertura', 'Ingreso', 'Egreso', 'Venta', 'Cierre')", name="CHK_MovimientosCaja_Tipo"),

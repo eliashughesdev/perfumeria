@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { Usuario, TokenData, LoginRequest } from '@/types'
+import { authService } from '@/services/api'
+import { mapUsuario } from '@/services/mappers'
+import type { LoginRequest, PermisoClave, RolUsuario, TokenData, Usuario } from '@/types'
 
 interface AuthContextType {
   token: string | null
@@ -9,73 +11,86 @@ interface AuthContextType {
   isLoading: boolean
   isAuthenticated: boolean
   hasRole: (rol: RolUsuario) => boolean
+  hasPermission: (permiso: PermisoClave) => boolean
 }
 
-type RolUsuario = 'ROLE_ADMIN' | 'ROLE_CAJERO'
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const TOKEN_KEY = 'lessence_token'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('lessence_token')
+      return localStorage.getItem(TOKEN_KEY)
     }
     return null
   })
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8050'
-
   useEffect(() => {
-    if (token) {
-      fetch(`${API_URL}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((u) => setUsuario({
-          id: u.Id ?? u.id,
-          nombre: u.Nombre ?? u.nombre,
-          email: u.Email ?? u.email,
-          rol: u.Rol ?? u.rol,
-          activo: u.Activo ?? u.activo ?? true,
-        }))
-        .catch(() => {
-          localStorage.removeItem('lessence_token')
-          setToken(null)
-        })
-        .finally(() => setIsLoading(false))
-    } else {
+    if (!token) {
+      setUsuario(null)
       setIsLoading(false)
+      return
+    }
+
+    let active = true
+    setIsLoading(true)
+    authService
+      .me()
+      .then((response) => {
+        if (active) setUsuario(mapUsuario(response.data))
+      })
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY)
+        if (active) {
+          setToken(null)
+          setUsuario(null)
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoading(false)
+      })
+
+    return () => {
+      active = false
     }
   }, [token])
 
-  const hasRole = (rol: RolUsuario): boolean => {
-    return usuario?.rol === rol
+  const hasRole = (rol: RolUsuario): boolean => usuario?.rol === rol
+
+  const hasPermission = (permiso: PermisoClave): boolean => {
+    if (!usuario) return false
+    if (usuario.rol === 'ROLE_ADMIN') return true
+    return usuario.permisos.includes(permiso)
   }
 
   const login = async (data: LoginRequest) => {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!res.ok) throw new Error('Credenciales inválidas')
-    const result: TokenData = await res.json()
-    localStorage.setItem('lessence_token', result.access_token)
+    const response = await authService.login(data)
+    const result: TokenData = response.data
+    localStorage.setItem(TOKEN_KEY, result.access_token)
     setToken(result.access_token)
-    setUsuario({ id: 0, nombre: result.nombre, email: result.email, rol: result.rol, activo: true })
+    setUsuario({
+      id: 0,
+      nombre: result.nombre,
+      email: result.email,
+      rol: result.rol,
+      activo: true,
+      permisos: result.permisos ?? [],
+    })
   }
 
   const logout = () => {
-    localStorage.removeItem('lessence_token')
+    localStorage.removeItem(TOKEN_KEY)
     setToken(null)
     setUsuario(null)
     window.location.href = '/'
   }
 
   return (
-    <AuthContext.Provider value={{ token, usuario, login, logout, isLoading, isAuthenticated: !!token, hasRole }}>
+    <AuthContext.Provider
+      value={{ token, usuario, login, logout, isLoading, isAuthenticated: !!token, hasRole, hasPermission }}
+    >
       {children}
     </AuthContext.Provider>
   )

@@ -1,11 +1,37 @@
 export type RolUsuario = 'ROLE_ADMIN' | 'ROLE_CAJERO'
 
+export type PermisoClave =
+  | 'pos.vender'
+  | 'pos.descuentos'
+  | 'inventario.ver'
+  | 'inventario.costos'
+  | 'inventario.editar'
+  | 'caja.movimientos'
+  | 'caja.apertura_cierre'
+  | 'contabilidad.ver'
+  | 'factura.editar'
+  | 'factura.configurar'
+  | 'usuarios.gestionar'
+
+export interface PermisoDefinicion {
+  clave: PermisoClave
+  etiqueta: string
+  grupo: string
+}
+
+export interface CatalogoPermisos {
+  roles: RolUsuario[]
+  permisos: PermisoDefinicion[]
+  por_rol: Record<RolUsuario, PermisoClave[]>
+}
+
 export interface Usuario {
   id: number
   nombre: string
   email: string
   rol: RolUsuario
   activo: boolean
+  permisos: PermisoClave[]
   fechaCreacion?: string
 }
 
@@ -16,6 +42,7 @@ export interface TokenData {
   rol: RolUsuario
   nombre: string
   email: string
+  permisos: PermisoClave[]
 }
 
 export interface Producto {
@@ -63,6 +90,8 @@ export interface Venta {
   cambio?: number | null
   activo: boolean
   fechaCreacion: string
+  cajero?: string | null
+  cajaCerrada?: boolean | null
   detalles?: DetalleVenta[]
 }
 
@@ -80,6 +109,8 @@ export interface MovimientoCaja {
   concepto: string
   metodoPago?: string | null
   monto: number
+  montoContado?: number | null
+  diferencia?: number | null
   idUsuario: number
   idVenta?: number | null
   fechaMovimiento: string
@@ -95,12 +126,18 @@ export interface MovimientoCajaCreate {
 
 export interface ResumenCaja {
   fecha: string
+  estado: 'Abierta' | 'Cerrada' | 'Sin apertura'
+  abierta: boolean
+  fechaApertura?: string | null
+  fechaCierre?: string | null
   fondoInicial: number
   ventasEfectivo: number
   ventasNoEfectivo: number
   ingresosExtra: number
   egresosExtra: number
   efectivoEsperado: number
+  montoContado?: number | null
+  diferencia?: number | null
 }
 
 export interface ConfiguracionEmpresa {
@@ -112,10 +149,32 @@ export interface ConfiguracionEmpresa {
   ciudad?: string | null
   telefono?: string | null
   email?: string | null
+  sitioWeb?: string | null
+  redesSociales?: string | null
+  logoUrl?: string | null
   ncfSerie: string
   ncfSecuenciaActual: number
   itbisPorcentaje: number
   monedaSimbolo: string
+}
+
+export interface ConfiguracionFactura {
+  id: number
+  tituloTicket: string
+  mensajeAgradecimiento: string
+  mensajeGarantia: string
+  mensajePolitica: string
+  mensajePie?: string | null
+  redSocial?: string | null
+  prefijoFactura: string
+  anchoTicketMm: number
+  mostrarLogo: boolean
+  mostrarSKU: boolean
+  mostrarCajero: boolean
+  mostrarCliente: boolean
+  mostrarNCF: boolean
+  mostrarCodigoBarras: boolean
+  activo: boolean
 }
 
 export interface InvoiceData {
@@ -126,6 +185,27 @@ export interface InvoiceData {
     direccion?: string | null
     ciudad?: string | null
     telefono?: string | null
+    email?: string | null
+    sitioWeb?: string | null
+    redesSociales?: string | null
+    logoUrl?: string | null
+    moneda: string
+    itbisPorcentaje: number
+  }
+  plantilla: {
+    titulo: string
+    agradecimiento: string
+    garantia: string
+    politica: string
+    pie?: string | null
+    redSocial?: string | null
+    anchoTicketMm: number
+    mostrarLogo: boolean
+    mostrarSKU: boolean
+    mostrarCajero: boolean
+    mostrarCliente: boolean
+    mostrarNCF: boolean
+    mostrarCodigoBarras: boolean
   }
   factura: {
     numero: string
@@ -163,6 +243,7 @@ export interface UsuarioCreate {
   rol: RolUsuario
   activo?: boolean
   password: string
+  permisos?: PermisoClave[]
 }
 
 export interface UsuarioUpdate {
@@ -171,4 +252,66 @@ export interface UsuarioUpdate {
   rol?: RolUsuario
   activo?: boolean
   password?: string
+  permisos?: PermisoClave[]
+}
+
+export interface ContabilidadTotales {
+  ventasBrutas: number
+  subtotal: number
+  descuentos: number
+  itbis: number
+  costoMercancia: number
+  gastosCaja: number
+  utilidadBruta: number
+  utilidadNeta: number
+  margenPorcentaje: number
+  tickets: number
+  ticketPromedio: number
+  unidadesVendidas: number
+}
+
+export interface ContabilidadPuntoSerie {
+  fecha: string
+  ventas: number
+  costo: number
+  utilidad: number
+}
+
+export interface ContabilidadProducto {
+  nombre: string
+  sku?: string | null
+  unidades: number
+  ventas: number
+  costo: number
+  utilidad: number
+}
+
+export interface ContabilidadMetodoPago {
+  metodo: string
+  monto: number
+  tickets: number
+}
+
+export interface ContabilidadReporte {
+  desde: string
+  hasta: string
+  totales: ContabilidadTotales
+  inventario: {
+    unidades: number
+    valorCosto: number
+    valorVenta: number
+    stockBajo: number
+  }
+  serieDiaria: ContabilidadPuntoSerie[]
+  topProductos: ContabilidadProducto[]
+  metodosPago: ContabilidadMetodoPago[]
+  ventasRecientes: Venta[]
+}
+
+export interface VentaUpdate {
+  cliente?: string
+  metodoPago?: 'Efectivo' | 'Tarjeta' | 'Transferencia'
+  descuentoPorcentaje?: number
+  efectivoRecibido?: number
+  detalles: DetalleVenta[]
 }

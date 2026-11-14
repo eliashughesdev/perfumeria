@@ -54,3 +54,4 @@ logs/
 # Misc
 *.zip
 *.tar.gz
+\n# Local database\nbackend/nurfa_pos.db\n

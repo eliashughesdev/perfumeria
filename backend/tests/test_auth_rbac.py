@@ -7,36 +7,36 @@ class TestAuthLogin:
     def test_login_admin_exitoso(self, client, admin_user):
         response = client.post(
             "/api/auth/login",
-            json={"email": "admin@lessence.com", "password": "Admin123!"},
+            json={"email": "admin@nurfaessencial.com", "password": "Admin123!"},
         )
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
         assert data["rol"] == "ROLE_ADMIN"
-        assert data["email"] == "admin@lessence.com"
+        assert data["email"] == "admin@nurfaessencial.com"
 
     def test_login_cajero_exitoso(self, client, cajero_user):
         response = client.post(
             "/api/auth/login",
-            json={"email": "caja1@lessence.com", "password": "Admin123!"},
+            json={"email": "caja1@nurfaessencial.com", "password": "Admin123!"},
         )
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
         assert data["rol"] == "ROLE_CAJERO"
-        assert data["email"] == "caja1@lessence.com"
+        assert data["email"] == "caja1@nurfaessencial.com"
 
     def test_login_credenciales_invalidas(self, client):
         response = client.post(
             "/api/auth/login",
-            json={"email": "admin@lessence.com", "password": "wrongpassword"},
+            json={"email": "admin@nurfaessencial.com", "password": "wrongpassword"},
         )
         assert response.status_code == 401
 
     def test_login_usuario_inexistente(self, client):
         response = client.post(
             "/api/auth/login",
-            json={"email": "noexiste@lessence.com", "password": "Admin123!"},
+            json={"email": "noexiste@nurfaessencial.com", "password": "Admin123!"},
         )
         assert response.status_code == 401
 
@@ -49,7 +49,7 @@ class TestAuthMe:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["Email"] == "admin@lessence.com"
+        assert data["Email"] == "admin@nurfaessencial.com"
         assert data["Rol"] == "ROLE_ADMIN"
 
     def test_me_con_token_cajero(self, client, cajero_token):
@@ -59,7 +59,7 @@ class TestAuthMe:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["Email"] == "caja1@lessence.com"
+        assert data["Email"] == "caja1@nurfaessencial.com"
         assert data["Rol"] == "ROLE_CAJERO"
 
     def test_me_sin_token(self, client):

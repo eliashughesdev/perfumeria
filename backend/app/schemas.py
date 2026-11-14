@@ -25,6 +25,7 @@ class UsuarioBase(BaseModel):
 
 class UsuarioCreate(UsuarioBase):
     Password: str = Field(..., min_length=6)
+    Permisos: Optional[List[str]] = None
 
 
 class UsuarioUpdate(BaseModel):
@@ -33,12 +34,14 @@ class UsuarioUpdate(BaseModel):
     Rol: Optional[str] = None
     Activo: Optional[bool] = None
     Password: Optional[str] = None
+    Permisos: Optional[List[str]] = None
 
 
 class UsuarioOut(UsuarioBase):
     model_config = ConfigDict(from_attributes=True)
 
     Id: int
+    Permisos: List[str] = Field(default_factory=list)
     FechaCreacion: Optional[datetime] = None
 
 
@@ -49,6 +52,7 @@ class Token(BaseModel):
     rol: str
     nombre: str
     email: str
+    permisos: List[str] = Field(default_factory=list)
 
 
 class TokenData(BaseModel):
@@ -149,6 +153,9 @@ class VentaOut(VentaBase):
     Cambio: Optional[Decimal] = None
     Activo: bool
     FechaCreacion: datetime
+    Cajero: Optional[str] = None
+    CajaCerrada: Optional[bool] = None
+    Detalles: List[DetalleVentaOut] = Field(default_factory=list)
 
 
 # --------------------------- Esquemas de Caja / Arqueo ---------------------------
@@ -170,17 +177,37 @@ class MovimientoCajaOut(MovimientoCajaBase):
     Id: int
     IdUsuario: int
     IdVenta: Optional[int] = None
+    MontoContado: Optional[Decimal] = None
+    Diferencia: Optional[Decimal] = None
     FechaMovimiento: datetime
 
 
 class ResumenCajaOut(BaseModel):
     Fecha: str
+    Estado: str = "Cerrada"
+    Abierta: bool = False
+    FechaApertura: Optional[datetime] = None
+    FechaCierre: Optional[datetime] = None
     FondoInicial: Decimal
     VentasEfectivo: Decimal
     VentasNoEfectivo: Decimal
     IngresosExtra: Decimal
     EgresosExtra: Decimal
     EfectivoEsperado: Decimal
+    MontoContado: Optional[Decimal] = None
+    Diferencia: Optional[Decimal] = None
+
+
+class CierreCajaRequest(BaseModel):
+    MontoContado: Optional[Decimal] = Field(default=None, ge=0)
+
+
+class EditarVentaRequest(BaseModel):
+    Cliente: Optional[str] = None
+    MetodoPago: Optional[str] = None
+    DescuentoPorcentaje: Optional[Decimal] = Field(default=None, ge=0, le=100)
+    EfectivoRecibido: Optional[Decimal] = None
+    Detalles: List[DetalleVentaCreate]
 
 
 # --------------------------- Esquema de Configuración Empresa ---------------------------
@@ -196,7 +223,122 @@ class ConfiguracionEmpresaOut(BaseModel):
     Ciudad: Optional[str]
     Telefono: Optional[str]
     Email: Optional[str]
+    SitioWeb: Optional[str] = None
+    RedesSociales: Optional[str] = None
+    LogoUrl: Optional[str] = None
     NCFSerie: str
     NCFSecuenciaActual: int
     ITBISPorcentaje: Decimal
     MonedaSimbolo: str
+
+
+class ConfiguracionEmpresaUpdate(BaseModel):
+    NombreComercial: Optional[str] = None
+    RazonSocial: Optional[str] = None
+    RNC: Optional[str] = None
+    Direccion: Optional[str] = None
+    Ciudad: Optional[str] = None
+    Telefono: Optional[str] = None
+    Email: Optional[str] = None
+    SitioWeb: Optional[str] = None
+    RedesSociales: Optional[str] = None
+    LogoUrl: Optional[str] = None
+    NCFSerie: Optional[str] = None
+    NCFSecuenciaActual: Optional[int] = Field(default=None, ge=0)
+    ITBISPorcentaje: Optional[Decimal] = Field(default=None, ge=0, le=100)
+    MonedaSimbolo: Optional[str] = None
+
+
+class ConfiguracionFacturaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    Id: int
+    TituloTicket: str
+    MensajeAgradecimiento: str
+    MensajeGarantia: str
+    MensajePolitica: str
+    MensajePie: Optional[str] = None
+    RedSocial: Optional[str] = None
+    PrefijoFactura: str
+    AnchoTicketMm: int
+    MostrarLogo: bool
+    MostrarSKU: bool
+    MostrarCajero: bool
+    MostrarCliente: bool
+    MostrarNCF: bool
+    MostrarCodigoBarras: bool
+    Activo: bool
+
+
+class ConfiguracionFacturaUpdate(BaseModel):
+    TituloTicket: Optional[str] = None
+    MensajeAgradecimiento: Optional[str] = None
+    MensajeGarantia: Optional[str] = None
+    MensajePolitica: Optional[str] = None
+    MensajePie: Optional[str] = None
+    RedSocial: Optional[str] = None
+    PrefijoFactura: Optional[str] = None
+    AnchoTicketMm: Optional[int] = Field(default=None, ge=40, le=120)
+    MostrarLogo: Optional[bool] = None
+    MostrarSKU: Optional[bool] = None
+    MostrarCajero: Optional[bool] = None
+    MostrarCliente: Optional[bool] = None
+    MostrarNCF: Optional[bool] = None
+    MostrarCodigoBarras: Optional[bool] = None
+
+
+# --------------------------- Esquemas de Contabilidad ---------------------------
+
+class ContabilidadTotales(BaseModel):
+    VentasBrutas: Decimal
+    Subtotal: Decimal
+    Descuentos: Decimal
+    ITBIS: Decimal
+    CostoMercancia: Decimal
+    GastosCaja: Decimal
+    UtilidadBruta: Decimal
+    UtilidadNeta: Decimal
+    MargenPorcentaje: Decimal
+    Tickets: int
+    TicketPromedio: Decimal
+    UnidadesVendidas: int
+
+
+class ContabilidadPuntoSerie(BaseModel):
+    Fecha: str
+    Ventas: Decimal
+    Costo: Decimal
+    Utilidad: Decimal
+
+
+class ContabilidadProducto(BaseModel):
+    Nombre: str
+    SKU: Optional[str] = None
+    Unidades: int
+    Ventas: Decimal
+    Costo: Decimal
+    Utilidad: Decimal
+
+
+class ContabilidadMetodoPago(BaseModel):
+    Metodo: str
+    Monto: Decimal
+    Tickets: int
+
+
+class ContabilidadInventario(BaseModel):
+    Unidades: int
+    ValorCosto: Decimal
+    ValorVenta: Decimal
+    StockBajo: int
+
+
+class ContabilidadReporteOut(BaseModel):
+    Desde: str
+    Hasta: str
+    Totales: ContabilidadTotales
+    Inventario: ContabilidadInventario
+    SerieDiaria: List[ContabilidadPuntoSerie]
+    TopProductos: List[ContabilidadProducto]
+    MetodosPago: List[ContabilidadMetodoPago]
+    VentasRecientes: List[VentaOut]

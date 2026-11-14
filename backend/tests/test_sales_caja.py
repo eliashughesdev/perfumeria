@@ -292,3 +292,71 @@ class TestMovimientoCajaAutomatico:
         )
         movimientos_efectivo = db_session.execute(stmt).scalars().all()
         assert len(movimientos_efectivo) == 0
+
+
+class TestListadoFacturasAdmin:
+    def test_listado_incluye_cajero_y_estado_del_turno(
+        self, client, admin_token, config_empresa, db_session
+    ):
+        from app.models import Producto
+
+        producto = Producto(
+            SKU="FAC-LIST-001",
+            Nombre="Perfume Factura Listado",
+            Categoria="Damas",
+            Costo=20.00,
+            PrecioVenta=50.00,
+            StockActual=5,
+            Activo=True,
+        )
+        db_session.add(producto)
+        db_session.commit()
+
+        client.post(
+            "/api/caja/apertura",
+            params={"monto": 150.00},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        venta_response = client.post(
+            "/api/sales",
+            json={
+                "Cliente": "Cliente Factura",
+                "MetodoPago": "Efectivo",
+                "DescuentoPorcentaje": 0.0,
+                "Detalles": [
+                    {
+                        "IdProducto": producto.Id,
+                        "Cantidad": 1,
+                        "PrecioUnitario": 50.00,
+                    }
+                ],
+            },
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert venta_response.status_code == 201, venta_response.text
+
+        response = client.get(
+            "/api/sales",
+            params={"limite": 10, "buscar": venta_response.json()["NumeroFactura"]},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 200
+        facturas = response.json()
+        assert len(facturas) == 1
+        assert facturas[0]["Cajero"]
+        assert facturas[0]["CajaCerrada"] is False
+
+        client.post(
+            "/api/caja/cierre",
+            json={"MontoContado": 150.00},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        response = client.get(
+            "/api/sales",
+            params={"limite": 10},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 200
+        factura = next(item for item in response.json() if item["Id"] == venta_response.json()["Id"])
+        assert factura["CajaCerrada"] is True

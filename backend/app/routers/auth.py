@@ -8,6 +8,7 @@ Endpoints:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.security import (
@@ -17,16 +18,29 @@ from app.security import (
     create_refresh_token,
     decode_token,
 )
-from app.schemas import LoginRequest, Token, UsuarioOut, TokenData
+from app.schemas import LoginRequest, Token, UsuarioOut
 from app.models import Usuario
 from app.dependencies import get_current_user
+from app.permissions import permissions_for
+from app.services.user_service import usuario_a_out
 
 router = APIRouter(tags=["Autenticación"])
+
+LEGACY_EMAILS = {
+    "admin@nurfaesencial.com": "admin@nurfaessencial.com",
+    "caja1@nurfaesencial.com": "caja1@nurfaessencial.com",
+}
+
+
+def normalize_email(value: str) -> str:
+    email = value.strip().lower()
+    return LEGACY_EMAILS.get(email, email)
 
 
 @router.post("/login", response_model=Token, summary="Iniciar sesión (JWT)")
 def login(login_data: LoginRequest, db: Session = Depends(get_db)):
-    usuario = db.query(Usuario).filter(Usuario.Email == login_data.email).first()
+    email = normalize_email(login_data.email)
+    usuario = db.query(Usuario).filter(func.lower(Usuario.Email) == email).first()
     if not usuario or not verify_password(login_data.password, usuario.PasswordHash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -49,6 +63,7 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
         rol=usuario.Rol,
         nombre=usuario.Nombre,
         email=usuario.Email,
+        permisos=permissions_for(usuario),
     )
 
 
@@ -60,9 +75,9 @@ def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token inválido",
         )
-    email = payload.get("sub")
+    email = normalize_email(payload.get("sub") or "")
     rol = payload.get("rol")
-    usuario = db.query(Usuario).filter(Usuario.Email == email).first()
+    usuario = db.query(Usuario).filter(func.lower(Usuario.Email) == email).first()
     if not usuario or not usuario.Activo:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -79,6 +94,7 @@ def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
         rol=usuario.Rol,
         nombre=usuario.Nombre,
         email=usuario.Email,
+        permisos=permissions_for(usuario),
     )
 
 
@@ -90,4 +106,4 @@ def logout():
 
 @router.get("/me", response_model=UsuarioOut, summary="Usuario autenticado actual")
 def me(current_user: Usuario = Depends(get_current_user)):
-    return current_user
+    return usuario_a_out(current_user)

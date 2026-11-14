@@ -1,5 +1,5 @@
 #=============================================================================
-# L'ESSENCE POS - Guía de Despliegue On-Premise (Windows Server + IIS + NSSM)
+# NURFA ESSENCIAL POS - Guía de Despliegue On-Premise (Windows Server + IIS + NSSM)
 #=============================================================================
 # Frontend: React + TypeScript + Tailwind (puerto 3050 -> IIS estático)
 # Backend:  FastAPI + SQL Server (puerto 8050 -> NSSM servicio Windows)
@@ -63,11 +63,11 @@ PASO 2: DESPLEGAR EL BACKEND FASTAPI (PUERTO 8050)
 2.1 Publicar archivos del backend en el servidor
 
     Copiar la carpeta C:\perfumeria\backend a:
-      C:\inetpub\lessence-pos\backend
+      C:\inetpub\nurfa-pos\backend
 
 2.2 Crear entorno virtual e instalar dependencias
 
-    cd C:\inetpub\lessence-pos\backend
+    cd C:\inetpub\nurfa-pos\backend
     python -m venv venv
     .\venv\Scripts\Activate.ps1
     pip install -r requirements.txt
@@ -101,32 +101,32 @@ PASO 3: INSTALAR FASTAPI COMO SERVICIO WINDOWS CON NSSM
 
 3.1 Crear un script de arranque (start_api.bat)
 
-    Crear archivo C:\inetpub\lessence-pos\backend\start_api.bat:
+    Crear archivo C:\inetpub\nurfa-pos\backend\start_api.bat:
 
     @echo off
-    cd /d "C:\inetpub\lessence-pos\backend"
+    cd /d "C:\inetpub\nurfa-pos\backend"
     call venv\Scripts\Activate.bat
     uvicorn app.main:app --host 0.0.0.0 --port 8050
 
 3.2 Instalar servicio con NSSM
 
-    nssm install LessencePOSAPI "C:\inetpub\lessence-pos\backend\start_api.bat"
+    nssm install NurfaPOSAPI "C:\inetpub\nurfa-pos\backend\start_api.bat"
 
 3.3 Configurar el servicio
 
-    nssm set LessencePOSAPI Directory "C:\inetpub\lessence-pos\backend"
-    nssm set LessencePOSAPI Description "L'Essence POS - API FastAPI en puerto 8050"
-    nssm set LessencePOSAPI Start SERVICE_AUTO_START
-    nssm set LessencePOSAPI RestartDelay 5000
-    nssm set LessencePOSAPI ThrottleReset 10000
+    nssm set NurfaPOSAPI Directory "C:\inetpub\nurfa-pos\backend"
+    nssm set NurfaPOSAPI Description "NURFA ESSENCIAL POS - API FastAPI en puerto 8050"
+    nssm set NurfaPOSAPI Start SERVICE_AUTO_START
+    nssm set NurfaPOSAPI RestartDelay 5000
+    nssm set NurfaPOSAPI ThrottleReset 10000
 
 3.3 Iniciar el servicio
 
-    nssm start LessencePOSAPI
+    nssm start NurfaPOSAPI
 
     Verificar:
-    nssm status LessencePOSAPI
-    sc query LessencePOSAPI
+    nssm status NurfaPOSAPI
+    sc query NurfaPOSAPI
 
     El API estará disponible en http://localhost:8050
 
@@ -147,10 +147,10 @@ PASO 4: BUILD Y DESPLEGUE DEL FRONTEND REACT (PUERTO 3050 -> IIS)
 4.2 Copiar archivos estáticos a IIS
 
     Crear sitio web en IIS:
-      - Nombre del sitio: L'Essence POS
-      - Ruta física: C:\inetpub\lessence-pos\frontend (o donde copie dist/)
+      - Nombre del sitio: NURFA ESSENCIAL POS
+      - Ruta física: C:\inetpub\nurfa-pos\frontend (o donde copie dist/)
       - Puerto: 80 (o 443 con SSL)
-      - Nombre de host: pos.lessence.local (o IP del servidor)
+      - Nombre de host: pos.nurfaessencial.local (o IP del servidor)
 
     Copiar el contenido de dist/ a la ruta física del sitio IIS.
     Copiar también el archivo web.config proporcionado en esta guía.
@@ -169,15 +169,15 @@ PASO 4: BUILD Y DESPLEGUE DEL FRONTEND REACT (PUERTO 3050 -> IIS)
 4.4 Verificar el frontend
 
     http://localhost/          (o http://<IP-servidor>/)
-    Debería cargar la aplicación L'Essence POS.
+    Debería cargar la aplicación NURFA ESSENCIAL POS.
 
 ===============================================================================
 PASO 5: CONFIGURAR FIREWALL DE WINDOWS
 ===============================================================================
 
-    New-NetFirewallRule -DisplayName "L'Essence POS API" -Direction Inbound -Protocol TCP -LocalPort 8050 -Action Allow
-    New-NetFirewallRule -DisplayName "L'Essence POS Web" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
-    New-NetFirewallRule -DisplayName "L'Essence POS Web SSL" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
+    New-NetFirewallRule -DisplayName "NURFA ESSENCIAL POS API" -Direction Inbound -Protocol TCP -LocalPort 8050 -Action Allow
+    New-NetFirewallRule -DisplayName "NURFA ESSENCIAL POS Web" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
+    New-NetFirewallRule -DisplayName "NURFA ESSENCIAL POS Web SSL" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
 
 ===============================================================================
 PASO 6: CONFIGURAR TAILSCALE PARA DISPOSITIVOS MÓVILES
@@ -217,7 +217,7 @@ PASO 6: CONFIGURAR TAILSCALE PARA DISPOSITIVOS MÓVILES
     CORS_ORIGINS=http://localhost:3050,http://127.0.0.1:3050,http://100.64.0.55,http://<otra-ip-tailscale>
 
     Reiniciar el servicio:
-    nssm restart LessencePOSAPI
+    nssm restart NurfaPOSAPI
 
 ===============================================================================
 PASO 7: SSL / HTTPS (RECOMENDADO PARA PRODUCCIÓN)
@@ -231,7 +231,7 @@ PASO 7: SSL / HTTPS (RECOMENDADO PARA PRODUCCIÓN)
 
 7.2 Vincular en IIS
 
-    - Sitio web L'Essence POS > Enlaces > Agregar
+    - Sitio web NURFA ESSENCIAL POS > Enlaces > Agregar
     - Tipo: https
     - Puerto: 443
     - Certificado: seleccionar el certificado instalado
@@ -243,7 +243,7 @@ PASO 7: SSL / HTTPS (RECOMENDADO PARA PRODUCCIÓN)
 
 7.4 Actualizar CORS en .env
 
-    CORS_ORIGINS=https://pos.lessence.com,https://<ip-tailscale>
+    CORS_ORIGINS=https://pos.nurfaessencial.com,https://<ip-tailscale>
 
 ===============================================================================
 PASO 8: USUARIOS POR DEFECTO Y CREDENCIALES
@@ -251,8 +251,8 @@ PASO 8: USUARIOS POR DEFECTO Y CREDENCIALES
 
 Tras ejecutar el script DDL, los usuarios creados son:
 
-  Usuario: ana@lessence.com     | Rol: ROLE_ADMIN   | Contraseña: Admin123!
-  Usuario: caja1@lessence.com   | Rol: ROLE_CAJERO  | Contraseña: Admin123!
+  Usuario: admin@nurfaessencial.com     | Rol: ROLE_ADMIN   | Contraseña: Admin123!
+  Usuario: caja1@nurfaessencial.com   | Rol: ROLE_CAJERO  | Contraseña: Admin123!
 
 IMPORTANTE: Cambiar las contraseñas en producción tras el primer inicio.
 
@@ -272,13 +272,13 @@ COMANDOS ÚTILES DE MANTENIMIENTO
 ===============================================================================
 
     # Estado del servicio FastAPI
-    nssm status LessencePOSAPI
+    nssm status NurfaPOSAPI
 
     # Reiniciar API tras cambios
-    nssm restart LessencePOSAPI
+    nssm restart NurfaPOSAPI
 
     # Ver logs del servicio
-    nssm lessenceposapi logs  (si está configurado)
+    nssm nurfaposapi logs  (si está configurado)
 
     # Reciclar IIS
     iisreset

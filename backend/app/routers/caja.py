@@ -1,49 +1,49 @@
-"""Router de Control de Caja y Turnos (Arqueo).
+"""Control de caja y arqueo.
 
-Endpoints RBAC:
-  POST   /api/caja/apertura       - Abrir turno con fondo inicial (Cajero/Admin)
-  POST   /api/caja/movimiento     - Registrar ingreso/egreso de efectivo (Cajero/Admin)
-  GET    /api/caja/resumen        - Resumen de caja por fecha (Cajero/Admin)
-  GET    /api/caja/movimientos    - Listar movimientos de caja (Cajero/Admin)
-  POST   /api/caja/cierre         - Cerrar turno y arqueo (Cajero/Admin)
-
-El cálculo de efectivo esperado sigue la lógica del prototipo:
-  Efectivo Esperado = Fondo Inicial + Ventas en Efectivo + Ingresos - Egresos
+Reglas:
+- Solo ROLE_ADMIN puede abrir o cerrar la caja.
+- Los movimientos de ingreso/egreso requieren el permiso `caja.movimientos`.
+- El cierre registra el efectivo contado y la diferencia contra el esperado.
 """
+
+from datetime import datetime
+from decimal import Decimal
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from decimal import Decimal
-from datetime import datetime
+
 from app.database import get_db
-from app.models import MovimientoCaja, Usuario, Venta
-from app.schemas import MovimientoCajaCreate, MovimientoCajaOut, ResumenCajaOut
-from app.dependencies import get_current_user, require_cajero_or_admin
+from app.dependencies import require_admin, require_cajero_or_admin, require_permission
+from app.models import MovimientoCaja, Usuario
+from app.schemas import (
+    CierreCajaRequest,
+    MovimientoCajaCreate,
+    MovimientoCajaOut,
+    ResumenCajaOut,
+)
+from app.services.cash_service import (
+    build_current_summary,
+    build_date_summary,
+    get_open_shift,
+    get_shift,
+)
 
 router = APIRouter(tags=["Caja y Arqueo"])
 
 
-@router.post("/apertura", response_model=MovimientoCajaOut, status_code=status.HTTP_201_CREATED, summary="Abrir turno de caja")
+@router.post("/apertura", response_model=MovimientoCajaOut, status_code=status.HTTP_201_CREATED, summary="Abrir caja (Admin)")
 def apertura_caja(
     monto: Decimal,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_cajero_or_admin),
+    current_user: Usuario = Depends(require_admin),
 ):
-    hoy = datetime.now().date()
-    ya_abierto = (
-        db.query(MovimientoCaja)
-        .filter(
-            MovimientoCaja.Tipo == "Apertura",
-            MovimientoCaja.IdUsuario == current_user.Id,
-            MovimientoCaja.FechaMovimiento >= datetime(hoy.year, hoy.month, hoy.day),
-        )
-        .first()
-    )
-    if ya_abierto:
+    if monto < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El fondo inicial no puede ser negativo.")
+    if get_open_shift(db):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya existe una apertura de caja registrada para este usuario hoy.",
+            detail="Ya existe una caja abierta. Debe cerrarla antes de abrir un nuevo turno.",
         )
 
     movimiento = MovimientoCaja(
@@ -63,13 +63,19 @@ def apertura_caja(
 def registrar_movimiento(
     mov_in: MovimientoCajaCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_cajero_or_admin),
+    current_user: Usuario = Depends(require_permission("caja.movimientos")),
 ):
     if mov_in.Tipo not in ("Ingreso", "Egreso"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tipo de movimiento inválido. Use 'Ingreso' o 'Egreso'.",
         )
+    if not get_open_shift(db):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La caja está cerrada. Solicite al administrador abrir el turno.",
+        )
+
     movimiento = MovimientoCaja(
         Tipo=mov_in.Tipo,
         Concepto=mov_in.Concepto,
@@ -84,110 +90,66 @@ def registrar_movimiento(
     return movimiento
 
 
-@router.get("/resumen", response_model=ResumenCajaOut, summary="Resumen de caja por fecha")
+@router.get("/resumen", response_model=ResumenCajaOut, summary="Resumen de caja")
 def resumen_caja(
     fecha: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_cajero_or_admin),
 ):
-    if fecha:
-        try:
-            fecha_obj = datetime.strptime(fecha, "%Y-%m-%d").date()
-        except ValueError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fecha inválida (YYYY-MM-DD)")
-    else:
-        fecha_obj = datetime.now().date()
-
-    inicio = datetime(fecha_obj.year, fecha_obj.month, fecha_obj.day)
-    fin = datetime(fecha_obj.year, fecha_obj.month, fecha_obj.day, 23, 59, 59)
-
-    movimientos = (
-        db.query(MovimientoCaja)
-        .filter(MovimientoCaja.FechaMovimiento.between(inicio, fin))
-        .all()
-    )
-
-    fondo_inicial = Decimal("0")
-    ventas_efectivo = Decimal("0")
-    ventas_no_efectivo = Decimal("0")
-    ingresos_extra = Decimal("0")
-    egresos_extra = Decimal("0")
-
-    for m in movimientos:
-        if m.Tipo == "Apertura":
-            fondo_inicial += m.Monto
-        elif m.Tipo == "Venta":
-            if m.MetodoPago == "Efectivo":
-                ventas_efectivo += m.Monto
-            else:
-                ventas_no_efectivo += m.Monto
-        elif m.Tipo == "Ingreso":
-            ingresos_extra += m.Monto
-        elif m.Tipo == "Egreso":
-            egresos_extra += m.Monto
-
-    efectivo_esperado = fondo_inicial + ventas_efectivo + ingresos_extra - egresos_extra
-
-    return ResumenCajaOut(
-        Fecha=fecha_obj.isoformat(),
-        FondoInicial=fondo_inicial,
-        VentasEfectivo=ventas_efectivo,
-        VentasNoEfectivo=ventas_no_efectivo,
-        IngresosExtra=ingresos_extra,
-        EgresosExtra=egresos_extra,
-        EfectivoEsperado=efectivo_esperado,
-    )
+    if not fecha:
+        return build_current_summary(db)
+    try:
+        fecha_obj = datetime.strptime(fecha, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fecha inválida (YYYY-MM-DD)")
+    return build_date_summary(db, fecha_obj)
 
 
-@router.get("/movimientos", response_model=List[MovimientoCajaOut], summary="Listar movimientos de caja")
+@router.get("/movimientos", response_model=List[MovimientoCajaOut], summary="Listar movimientos del turno")
 def listar_movimientos(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_cajero_or_admin),
     limite: int = 100,
 ):
-    movimientos = (
-        db.query(MovimientoCaja)
-        .order_by(MovimientoCaja.FechaMovimiento.desc())
-        .limit(limite)
-        .all()
-    )
-    return movimientos
+    apertura, cierre = get_shift(db)
+    q = db.query(MovimientoCaja)
+    if apertura:
+        inicio = apertura.FechaMovimiento
+        fin = cierre.FechaMovimiento if cierre else datetime.now()
+        q = q.filter(MovimientoCaja.FechaMovimiento >= inicio, MovimientoCaja.FechaMovimiento <= fin)
+    return q.order_by(MovimientoCaja.FechaMovimiento.desc(), MovimientoCaja.Id.desc()).limit(limite).all()
 
 
-@router.post("/cierre", summary="Cerrar turno y realizar arqueo")
+@router.post("/cierre", summary="Cerrar caja y registrar arqueo (Admin)")
 def cierre_caja(
+    payload: Optional[CierreCajaRequest] = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_cajero_or_admin),
+    current_user: Usuario = Depends(require_admin),
 ):
-    hoy = datetime.now().date()
-    inicio = datetime(hoy.year, hoy.month, hoy.day)
-    ya_cerrado = (
-        db.query(MovimientoCaja)
-        .filter(
-            MovimientoCaja.Tipo == "Cierre",
-            MovimientoCaja.IdUsuario == current_user.Id,
-            MovimientoCaja.FechaMovimiento >= inicio,
-        )
-        .first()
-    )
-    if ya_cerrado:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El turno ya fue cerrado hoy.",
-        )
+    apertura = get_open_shift(db)
+    if not apertura:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No existe una caja abierta para cerrar.")
 
-    resumen = __import__("app.routers.caja", fromlist=["resumen_caja"]).resumen_caja(
-        fecha=hoy.isoformat(), db=db, current_user=current_user
-    )
+    resumen = build_current_summary(db)
+    esperado = resumen["EfectivoEsperado"]
+    contado = payload.MontoContado if payload and payload.MontoContado is not None else None
+    diferencia = (contado - esperado) if contado is not None else None
 
     cierre = MovimientoCaja(
         Tipo="Cierre",
-        Concepto=f"Arqueo de turno - Efectivo esperado: {resumen.EfectivoEsperado}",
+        Concepto="Arqueo de turno",
         MetodoPago="Efectivo",
-        Monto=resumen.EfectivoEsperado,
+        Monto=esperado,
+        MontoContado=contado,
+        Diferencia=diferencia,
         IdUsuario=current_user.Id,
     )
     db.add(cierre)
     db.commit()
     db.refresh(cierre)
-    return {"message": "Turno cerrado y arqueo registrado", "cierre": cierre, "resumen": resumen}
+
+    return {
+        "message": "Caja cerrada y arqueo registrado",
+        "cierre": MovimientoCajaOut.model_validate(cierre),
+        "resumen": build_current_summary(db),
+    }

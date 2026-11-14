@@ -8,12 +8,13 @@ from typing import List
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "L'Essence POS API"
-    APP_VERSION: str = "1.0.0"
+    APP_NAME: str = "Nurfa Essencial Perfumería API"
+    APP_VERSION: str = "1.1.0"
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8050
     DEBUG: bool = True
     RELOAD: bool = True
+    AUTO_SEED: bool = False
 
     # Base de datos SQL Server
     DATABASE_URL: str = (

@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 #=============================================================================
-# L'ESSENCE POS - Script de Instalación On-Premise (Windows Server)
+# NURFA ESSENCIAL POS - Script de Instalación On-Premise (Windows Server)
 #=============================================================================
 # Uso tras hacer git clone del repositorio:
 #   .\scripts\install_server.ps1
@@ -18,7 +18,7 @@ $BACKEND_DIR = Join-Path $REPO_ROOT "backend"
 $FRONTEND_DIR = Join-Path $REPO_ROOT "frontend"
 
 Write-Host "================================================" -ForegroundColor Cyan
-Write-Host "  L'ESSENCE POS - Instalador On-Premise" -ForegroundColor Cyan
+Write-Host "  NURFA ESSENCIAL POS - Instalador On-Premise" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -147,9 +147,9 @@ Write-Host ""
 Write-Host "  2. Edite `backend/.env` con sus credenciales de SQL Server."
 Write-Host ""
 Write-Host "  3. Instale el backend como servicio de Windows con NSSM:"
-Write-Host "     nssm install LessencePOSAPI `"$START_API_BAT`""
-Write-Host "     nssm set LessencePOSAPI Directory `"$BACKEND_DIR`""
-Write-Host "     nssm start LessencePOSAPI"
+Write-Host "     nssm install NurfaPOSAPI `"$START_API_BAT`""
+Write-Host "     nssm set NurfaPOSAPI Directory `"$BACKEND_DIR`""
+Write-Host "     nssm start NurfaPOSAPI"
 Write-Host ""
 Write-Host "  4. Despliegue `frontend/dist/` en IIS como sitio web estático."
 Write-Host "     Use el archivo `frontend/web.config` para proxy inverso a :8050."
@@ -159,6 +159,6 @@ Write-Host "     Frontend:  http://localhost/ (o http://<IP-servidor>/) "
 Write-Host "     API Docs:  http://localhost:8050/docs"
 Write-Host ""
 Write-Host "Credenciales por defecto (tras ejecutar el DDL):" -ForegroundColor Yellow
-Write-Host "  admin@lessence.com   / Admin123!   (ROLE_ADMIN)"
-Write-Host "  caja1@lessence.com   / Admin123!   (ROLE_CAJERO)"
+Write-Host "  admin@nurfaessencial.com   / Admin123!   (ROLE_ADMIN)"
+Write-Host "  caja1@nurfaessencial.com   / Admin123!   (ROLE_CAJERO)"
 Write-Host ""

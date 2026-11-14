@@ -13,24 +13,24 @@ El costo solo es visible para ROLE_ADMIN (RBAC a nivel de esquema de respuesta).
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from decimal import Decimal
 from app.database import get_db
 from app.models import Producto, Usuario
 from app.schemas import ProductoOut, ProductoCreate, ProductoUpdate
-from app.dependencies import get_current_user, require_admin, require_cajero_or_admin
+from app.dependencies import require_permission
+from app.permissions import has_permission
 
 router = APIRouter(tags=["Productos"])
 
 
-def _producto_a_out(producto: Producto, rol: str) -> ProductoOut:
-    """Convierte un modelo ORM a esquema de salida aplicando RBAC en el costo."""
+def _producto_a_out(producto: Producto, usuario: Usuario) -> ProductoOut:
+    """Convierte un modelo ORM a esquema de salida aplicando permisos al costo."""
     data = {
         "Id": producto.Id,
         "SKU": producto.SKU,
         "Nombre": producto.Nombre,
         "Descripcion": producto.Descripcion,
         "Categoria": producto.Categoria,
-        "Costo": producto.Costo if rol == "ROLE_ADMIN" else None,
+        "Costo": producto.Costo if has_permission(usuario, "inventario.costos") else None,
         "PrecioVenta": producto.PrecioVenta,
         "StockActual": producto.StockActual,
         "StockMinimo": producto.StockMinimo,
@@ -45,7 +45,7 @@ def _producto_a_out(producto: Producto, rol: str) -> ProductoOut:
 @router.get("", response_model=List[ProductoOut], summary="Listar productos")
 def listar_productos(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_cajero_or_admin),
+    current_user: Usuario = Depends(require_permission("inventario.ver")),
     categoria: Optional[str] = Query(None),
     activo: bool = Query(True),
     buscar: Optional[str] = Query(None),
@@ -63,26 +63,26 @@ def listar_productos(
             | (Producto.Descripcion.ilike(like))
         )
     productos = q.order_by(Producto.Id.desc()).all()
-    return [_producto_a_out(p, current_user.Rol) for p in productos]
+    return [_producto_a_out(p, current_user) for p in productos]
 
 
 @router.get("/{producto_id}", response_model=ProductoOut, summary="Obtener producto por ID")
 def obtener_producto(
     producto_id: int,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_cajero_or_admin),
+    current_user: Usuario = Depends(require_permission("inventario.ver")),
 ):
     producto = db.query(Producto).filter(Producto.Id == producto_id).first()
     if not producto:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
-    return _producto_a_out(producto, current_user.Rol)
+    return _producto_a_out(producto, current_user)
 
 
 @router.post("", response_model=ProductoOut, status_code=status.HTTP_201_CREATED, summary="Crear producto (Admin)")
 def crear_producto(
     producto_in: ProductoCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_admin),
+    current_user: Usuario = Depends(require_permission("inventario.editar")),
 ):
     existente = db.query(Producto).filter(Producto.SKU == producto_in.SKU).first()
     if existente:
@@ -91,7 +91,7 @@ def crear_producto(
     db.add(producto)
     db.commit()
     db.refresh(producto)
-    return _producto_a_out(producto, current_user.Rol)
+    return _producto_a_out(producto, current_user)
 
 
 @router.put("/{producto_id}", response_model=ProductoOut, summary="Actualizar producto (Admin)")
@@ -99,7 +99,7 @@ def actualizar_producto(
     producto_id: int,
     producto_in: ProductoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_admin),
+    current_user: Usuario = Depends(require_permission("inventario.editar")),
 ):
     producto = db.query(Producto).filter(Producto.Id == producto_id).first()
     if not producto:
@@ -111,14 +111,14 @@ def actualizar_producto(
     producto.FechaActualizacion = datetime.now()
     db.commit()
     db.refresh(producto)
-    return _producto_a_out(producto, current_user.Rol)
+    return _producto_a_out(producto, current_user)
 
 
 @router.delete("/{producto_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Eliminar producto (Admin)")
 def eliminar_producto(
     producto_id: int,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_admin),
+    current_user: Usuario = Depends(require_permission("inventario.editar")),
 ):
     producto = db.query(Producto).filter(Producto.Id == producto_id).first()
     if not producto:

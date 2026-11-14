@@ -1,4 +1,4 @@
-# L'ESSENCE POS - Sistema Integral para Perfumería
+# NURFA ESSENCIAL POS - Sistema Integral para Perfumería
 
 Arquitectura Full Stack On-Premise para punto de venta de perfumería.
 
@@ -156,8 +156,8 @@ Tras ejecutar el script DDL, los usuarios creados son:
 
 | Email | Rol | Contraseña |
 |-------|-----|------------|
-| admin@lessence.com | ROLE_ADMIN | Admin123! |
-| caja1@lessence.com | ROLE_CAJERO | Admin123! |
+| admin@nurfaessencial.com | ROLE_ADMIN | Admin123! |
+| caja1@nurfaessencial.com | ROLE_CAJERO | Admin123! |
 
 **Importante:** Cambiar las contraseñas en producción tras el primer inicio.
 

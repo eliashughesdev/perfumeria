@@ -1,4 +1,4 @@
-"""Configuración de pruebas para el backend L'ESSENCE POS.
+"""Configuración de pruebas para el backend NURFA ESSENCIAL POS.
 
 Usa SQLite en memoria para no depender de SQL Server durante los tests.
 Sobreescribe la dependencia get_db de la app FastAPI.
@@ -12,6 +12,7 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key-do-not-use-in-production"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "480"
 os.environ["CORS_ORIGINS"] = "http://localhost:3050"
+os.environ["AUTO_SEED"] = "false"
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -92,7 +93,7 @@ def client(db_session):
 def admin_user(db_session):
     user = Usuario(
         Nombre="Ana Gómez",
-        Email="admin@lessence.com",
+        Email="admin@nurfaessencial.com",
         PasswordHash=hash_password("Admin123!"),
         Rol="ROLE_ADMIN",
         Activo=True,
@@ -107,7 +108,7 @@ def admin_user(db_session):
 def cajero_user(db_session):
     user = Usuario(
         Nombre="Carlos Méndez",
-        Email="caja1@lessence.com",
+        Email="caja1@nurfaessencial.com",
         PasswordHash=hash_password("Admin123!"),
         Rol="ROLE_CAJERO",
         Activo=True,
@@ -131,7 +132,7 @@ def cajero_token(cajero_user):
 @pytest.fixture()
 def config_empresa(db_session):
     cfg = ConfiguracionEmpresa(
-        NombreComercial="L'ESSENCE PERFUMERÍA",
+        NombreComercial="NURFA ESSENCIAL PERFUMERÍA",
         RazonSocial="INVERSIONES AROMAS DEL CARIBE SRL",
         RNC="1-31-84920-5",
         NCFSerie="B02",

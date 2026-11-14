@@ -1,28 +1,30 @@
-"""Punto de entrada de la API FastAPI - L'ESSENCE POS.
+"""Punto de entrada de la API FastAPI - Nurfa Essencial Perfumería.
 Puerto: 8050
 """
 
-from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from app.config import settings
-from app.database import engine, Base
-from app.routers import auth, products, sales, caja, users
+from app.database import Base, engine
+from app.routers import accounting, auth, caja, config, products, sales, users
+from app.seed import run_seed
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Crear tablas al iniciar (en producción usar Alembic migrations)
     Base.metadata.create_all(bind=engine)
+    if settings.AUTO_SEED:
+        run_seed()
     yield
 
 
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="API del Sistema POS para Perfumería L'ESSENCE - Backend FastAPI + SQL Server",
+    description="API del Sistema POS de Nurfa Essencial Perfumería - Backend FastAPI + SQL Server",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -61,3 +63,5 @@ app.include_router(products.router, prefix="/api/products", tags=["Productos"])
 app.include_router(sales.router, prefix="/api/sales", tags=["Ventas"])
 app.include_router(caja.router, prefix="/api/caja", tags=["Caja y Arqueo"])
 app.include_router(users.router, prefix="/api/users", tags=["Usuarios y RBAC"])
+app.include_router(config.router, prefix="/api/configuracion", tags=["Configuración"])
+app.include_router(accounting.router, prefix="/api/accounting", tags=["Contabilidad"])
