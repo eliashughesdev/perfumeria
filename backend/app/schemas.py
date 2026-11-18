@@ -73,10 +73,14 @@ class ProductoBase(BaseModel):
     Descripcion: Optional[str] = None
     Categoria: str = "Damas"
     Costo: Optional[Decimal] = Field(default=None, description="Solo visible para ROLE_ADMIN")
+    PorcentajeGanancia: Decimal = 0
     PrecioVenta: Decimal
     StockActual: int = 0
     StockMinimo: int = 4
-    ImagenUrl: Optional[str] = None
+    ImagenesUrls: Optional[str] = None
+    Dicans: bool = False
+    Mililitros: int = 0
+    PrecioPorMl: Decimal = 0
     Activo: bool = True
 
 
@@ -89,10 +93,14 @@ class ProductoUpdate(BaseModel):
     Descripcion: Optional[str] = None
     Categoria: Optional[str] = None
     Costo: Optional[Decimal] = None
+    PorcentajeGanancia: Optional[Decimal] = None
     PrecioVenta: Optional[Decimal] = None
     StockActual: Optional[int] = None
     StockMinimo: Optional[int] = None
-    ImagenUrl: Optional[str] = None
+    ImagenesUrls: Optional[str] = None
+    Dicans: Optional[bool] = None
+    Mililitros: Optional[int] = None
+    PrecioPorMl: Optional[Decimal] = None
     Activo: Optional[bool] = None
 
 
@@ -100,6 +108,7 @@ class ProductoOut(ProductoBase):
     model_config = ConfigDict(from_attributes=True)
 
     Id: int
+    MililitrosDisponibles: int = 0
     FechaCreacion: Optional[datetime] = None
     FechaActualizacion: Optional[datetime] = None
 
@@ -112,6 +121,7 @@ class DetalleVentaBase(BaseModel):
     NombreProducto: Optional[str] = None
     Cantidad: int = Field(..., gt=0)
     PrecioUnitario: Decimal = Field(..., ge=0)
+    EsDecant: bool = False
 
 
 class DetalleVentaCreate(DetalleVentaBase):

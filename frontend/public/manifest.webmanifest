@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "NURFA ESSENCIAL PERFUMERÍA POS",
-  "short_name": "NURFA POS",
-  "description": "Punto de venta, inventario, facturación y control de caja de Nurfa Essencial Perfumería.",
+  "name": "NURFA ESSENCI PERFUMERÍA POS",
+  "short_name": "NURFA ESSENCI POS",
+  "description": "Punto de venta, inventario, facturación y control de caja de Nurfa Essenci Perfumería.",
   "lang": "es-DO",
   "dir": "ltr",
   "start_url": "/",

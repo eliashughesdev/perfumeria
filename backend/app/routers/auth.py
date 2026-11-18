@@ -27,8 +27,12 @@ from app.services.user_service import usuario_a_out
 router = APIRouter(tags=["Autenticación"])
 
 LEGACY_EMAILS = {
-    "admin@nurfaesencial.com": "admin@nurfaessencial.com",
-    "caja1@nurfaesencial.com": "caja1@nurfaessencial.com",
+    "admin@nurfaesencial.com": "admin@nurfaessenci.com",
+    "admin@nurfaessencial.com": "admin@nurfaessenci.com",
+    "admin@nurfaescencialal.com": "admin@nurfaessenci.com",
+    "caja1@nurfaesencial.com": "caja1@nurfaessenci.com",
+    "caja1@nurfaessencial.com": "caja1@nurfaessenci.com",
+    "caja1@nurfaescencialal.com": "caja1@nurfaessenci.com",
 }
 
 

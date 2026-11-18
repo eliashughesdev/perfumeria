@@ -31,10 +31,15 @@ def _producto_a_out(producto: Producto, usuario: Usuario) -> ProductoOut:
         "Descripcion": producto.Descripcion,
         "Categoria": producto.Categoria,
         "Costo": producto.Costo if has_permission(usuario, "inventario.costos") else None,
+        "PorcentajeGanancia": producto.PorcentajeGanancia,
         "PrecioVenta": producto.PrecioVenta,
         "StockActual": producto.StockActual,
         "StockMinimo": producto.StockMinimo,
-        "ImagenUrl": producto.ImagenUrl,
+        "ImagenesUrls": producto.ImagenesUrls,
+        "Dicans": producto.Dicans,
+        "Mililitros": producto.Mililitros,
+        "MililitrosDisponibles": producto.MililitrosDisponibles,
+        "PrecioPorMl": producto.PrecioPorMl,
         "Activo": producto.Activo,
         "FechaCreacion": producto.FechaCreacion,
         "FechaActualizacion": producto.FechaActualizacion,
@@ -78,6 +83,14 @@ def obtener_producto(
     return _producto_a_out(producto, current_user)
 
 
+def _validar_config_decant(dicans: bool, mililitros: int, precio_por_ml) -> None:
+    if dicans and (mililitros <= 0 or precio_por_ml <= 0):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Para habilitar Decants debe indicar el contenido en ml y el precio por ml.",
+        )
+
+
 @router.post("", response_model=ProductoOut, status_code=status.HTTP_201_CREATED, summary="Crear producto (Admin)")
 def crear_producto(
     producto_in: ProductoCreate,
@@ -87,6 +100,7 @@ def crear_producto(
     existente = db.query(Producto).filter(Producto.SKU == producto_in.SKU).first()
     if existente:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El SKU ya existe")
+    _validar_config_decant(producto_in.Dicans, producto_in.Mililitros, producto_in.PrecioPorMl)
     producto = Producto(**producto_in.model_dump())
     db.add(producto)
     db.commit()
@@ -105,6 +119,10 @@ def actualizar_producto(
     if not producto:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado")
     update_data = producto_in.model_dump(exclude_unset=True)
+    dicans = update_data.get("Dicans", producto.Dicans)
+    mililitros = update_data.get("Mililitros", producto.Mililitros)
+    precio_por_ml = update_data.get("PrecioPorMl", producto.PrecioPorMl)
+    _validar_config_decant(dicans, mililitros, precio_por_ml)
     for campo, valor in update_data.items():
         setattr(producto, campo, valor)
     from datetime import datetime

@@ -1,4 +1,4 @@
-# NURFA ESSENCIAL POS - Backend FastAPI + SQL Server
+# NURFA ESSENCI POS - Backend FastAPI + SQL Server
 # Ejecutar en puerto 8050
 #
 # Requisitos previos:

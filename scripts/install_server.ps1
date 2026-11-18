@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 #=============================================================================
-# NURFA ESSENCIAL POS - Script de Instalación On-Premise (Windows Server)
+# NURFA ESSENCI POS - Script de Instalación On-Premise (Windows Server)
 #=============================================================================
 # Uso tras hacer git clone del repositorio:
 #   .\scripts\install_server.ps1
@@ -18,7 +18,7 @@ $BACKEND_DIR = Join-Path $REPO_ROOT "backend"
 $FRONTEND_DIR = Join-Path $REPO_ROOT "frontend"
 
 Write-Host "================================================" -ForegroundColor Cyan
-Write-Host "  NURFA ESSENCIAL POS - Instalador On-Premise" -ForegroundColor Cyan
+Write-Host "  NURFA ESSENCI POS - Instalador On-Premise" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -159,6 +159,6 @@ Write-Host "     Frontend:  http://localhost/ (o http://<IP-servidor>/) "
 Write-Host "     API Docs:  http://localhost:8050/docs"
 Write-Host ""
 Write-Host "Credenciales por defecto (tras ejecutar el DDL):" -ForegroundColor Yellow
-Write-Host "  admin@nurfaessencial.com   / Admin123!   (ROLE_ADMIN)"
-Write-Host "  caja1@nurfaessencial.com   / Admin123!   (ROLE_CAJERO)"
+Write-Host "  admin@nurfaessenci.com   / Admin123!   (ROLE_ADMIN)"
+Write-Host "  caja1@nurfaessenci.com   / Admin123!   (ROLE_CAJERO)"
 Write-Host ""

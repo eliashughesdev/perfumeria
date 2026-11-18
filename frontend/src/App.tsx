@@ -10,6 +10,7 @@ import { ProductDetailModal } from '@/components/inventario/ProductDetailModal'
 import { NewProductModal } from '@/components/inventario/NewProductModal'
 import { ProductCatalog } from '@/components/pos/ProductCatalog'
 import { CartPanel } from '@/components/pos/CartPanel'
+import { PosProductPreviewModal } from '@/components/pos/PosProductPreviewModal'
 import { CajaView } from '@/components/caja/CajaView'
 import { InventarioView } from '@/components/inventario/InventarioView'
 import { ContabilidadView } from '@/components/contabilidad/ContabilidadView'
@@ -28,6 +29,13 @@ type PaymentMethod = 'Efectivo' | 'Tarjeta' | 'Transferencia'
 
 interface CartItem extends DetalleVenta {
   importe: number
+}
+
+function decantBottlesNeeded(product: Producto, ml: number) {
+  const disponibles = product.mililitrosDisponibles ?? 0
+  const tamano = product.mililitros ?? 0
+  if (ml <= disponibles || tamano <= 0) return 0
+  return Math.ceil((ml - disponibles) / tamano)
 }
 
 const VIEW_PERMISSIONS: Partial<Record<ViewName, 'pos.vender' | 'inventario.ver' | 'contabilidad.ver' | 'usuarios.gestionar' | 'factura.editar' | 'factura.configurar'>> = {
@@ -57,11 +65,15 @@ function App() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isNewProductOpen, setIsNewProductOpen] = useState(false)
   const [detailProduct, setDetailProduct] = useState<Producto | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewProduct, setPreviewProduct] = useState<Producto | null>(null)
+  const [previewDecantMode, setPreviewDecantMode] = useState(false)
+  const [previewMaxMl, setPreviewMaxMl] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Efectivo')
   const [cashReceived, setCashReceived] = useState(0)
   const [saleBusy, setSaleBusy] = useState(false)
 
-  const [loginEmail, setLoginEmail] = useState('admin@nurfaessencial.com')
+  const [loginEmail, setLoginEmail] = useState('admin@nurfaessenci.com')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loginBusy, setLoginBusy] = useState(false)
@@ -121,7 +133,12 @@ function App() {
   const filteredProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return products.filter((product) => {
-      const matchesCategory = currentCategory === 'Todos' || product.categoria === currentCategory
+      const matchesCategory =
+        currentCategory === 'Todos' ||
+        (currentCategory === 'Decants'
+          ? Boolean(product.di_cans) &&
+            ((product.mililitrosDisponibles ?? 0) > 0 || product.stockActual > 0)
+          : product.categoria === currentCategory)
       const matchesQuery =
         !query ||
         product.nombre.toLowerCase().includes(query) ||
@@ -138,14 +155,18 @@ function App() {
       return
     }
     setCart((current) => {
-      const existing = current.find((item) => item.idProducto === productId)
+      const decantMl = current
+        .filter((item) => item.idProducto === productId && item.esDecant)
+        .reduce((sum, item) => sum + item.cantidad, 0)
+      const maxRegular = Math.max(0, product.stockActual - decantBottlesNeeded(product, decantMl))
+      const existing = current.find((item) => item.idProducto === productId && !item.esDecant)
       if (existing) {
-        if (existing.cantidad >= product.stockActual) {
+        if (existing.cantidad >= maxRegular) {
           showToast('Stock máximo alcanzado para este perfume.')
           return current
         }
         return current.map((item) =>
-          item.idProducto === productId
+          item.idProducto === productId && !item.esDecant
             ? { ...item, cantidad: item.cantidad + 1, importe: item.precioUnitario * (item.cantidad + 1) }
             : item,
         )
@@ -158,19 +179,102 @@ function App() {
         sku: product.sku,
         nombreProducto: product.nombre,
         importe: product.precioVenta,
+        esDecant: false,
       }
       return [...current, item]
     })
   }
 
-  const updateQty = (productId: number, delta: number) => {
+  const openPosPreview = (productId: number) => {
+    const product = products.find((item) => item.id === productId)
+    if (!product) return
+    const regularQty = cart
+      .filter((item) => item.idProducto === productId && !item.esDecant)
+      .reduce((sum, item) => sum + item.cantidad, 0)
+    const bottlesAvailable = Math.max(0, product.stockActual - regularQty)
+    setPreviewMaxMl(
+      (product.mililitrosDisponibles ?? 0) + bottlesAvailable * (product.mililitros ?? 0),
+    )
+    setPreviewProduct(product)
+    setPreviewDecantMode(currentCategory === 'Decants' && Boolean(product.di_cans))
+    setIsPreviewOpen(true)
+  }
+
+  const addDecantToCart = (productId: number, ml: number) => {
+    const product = products.find((item) => item.id === productId)
+    if (!product || !product.di_cans || (product.precioPorMl ?? 0) <= 0) {
+      showToast('Este perfume no tiene decants configurados.')
+      return
+    }
+    const step = Math.floor(ml / 5) * 5
+    if (step < 5) {
+      showToast('La cantidad mínima de decant es 5 ml.')
+      return
+    }
+    const perMl = product.precioPorMl ?? 0
+
     setCart((current) => {
-      const index = current.findIndex((item) => item.idProducto === productId)
+      const regularQty = current
+        .filter((item) => item.idProducto === productId && !item.esDecant)
+        .reduce((sum, item) => sum + item.cantidad, 0)
+      const bottlesAvailable = Math.max(0, product.stockActual - regularQty)
+      const availableMl = (product.mililitrosDisponibles ?? 0) + bottlesAvailable * (product.mililitros ?? 0)
+      const existing = current.find((item) => item.idProducto === productId && item.esDecant)
+      const nextMl = (existing?.cantidad ?? 0) + step
+      if (nextMl > availableMl) {
+        showToast(`Solo hay ${availableMl} ml disponibles de este perfume.`)
+        return current
+      }
+      if (existing) {
+        return current.map((item) =>
+          item.idProducto === productId && item.esDecant
+            ? { ...item, cantidad: nextMl, importe: perMl * nextMl }
+            : item,
+        )
+      }
+      showToast(`${step} ml de ${product.nombre} agregados al ticket.`)
+      const item: CartItem = {
+        idProducto: product.id,
+        cantidad: step,
+        precioUnitario: perMl,
+        sku: product.sku,
+        nombreProducto: product.nombre,
+        importe: perMl * step,
+        esDecant: true,
+      }
+      return [...current, item]
+    })
+    setIsPreviewOpen(false)
+  }
+
+  const updateQty = (productId: number, delta: number, esDecant = false) => {
+    setCart((current) => {
+      const index = current.findIndex(
+        (item) => item.idProducto === productId && Boolean(item.esDecant) === esDecant,
+      )
       if (index === -1) return current
       const product = products.find((item) => item.id === productId)
       const quantity = current[index].cantidad + delta
-      if (quantity <= 0) return current.filter((item) => item.idProducto !== productId)
-      if (quantity > (product?.stockActual ?? 0)) return current
+      if (quantity <= 0) {
+        return current.filter(
+          (item) => !(item.idProducto === productId && Boolean(item.esDecant) === esDecant),
+        )
+      }
+      const maxQuantity = esDecant
+        ? (() => {
+            const regularQty = current
+              .filter((item) => item.idProducto === productId && !item.esDecant)
+              .reduce((sum, item) => sum + item.cantidad, 0)
+            const bottlesAvailable = Math.max(0, (product?.stockActual ?? 0) - regularQty)
+            return (product?.mililitrosDisponibles ?? 0) + bottlesAvailable * (product?.mililitros ?? 0)
+          })()
+        : (() => {
+            const decantMl = current
+              .filter((item) => item.idProducto === productId && item.esDecant)
+              .reduce((sum, item) => sum + item.cantidad, 0)
+            return product ? Math.max(0, product.stockActual - decantBottlesNeeded(product, decantMl)) : 0
+          })()
+      if (quantity > maxQuantity) return current
       return current.map((item, itemIndex) =>
         itemIndex === index ? { ...item, cantidad: quantity, importe: item.precioUnitario * quantity } : item,
       )
@@ -212,6 +316,7 @@ function App() {
           NombreProducto: item.nombreProducto,
           Cantidad: item.cantidad,
           PrecioUnitario: item.precioUnitario,
+          EsDecant: Boolean(item.esDecant),
         })),
       }
 
@@ -294,7 +399,7 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-noir-950 text-champagne-200 text-sm">
+      <div className="h-dvh flex items-center justify-center bg-noir-950 text-champagne-200 text-sm">
         <Loader2 className="w-5 h-5 animate-spin mr-2" /> Cargando sesión...
       </div>
     )
@@ -302,7 +407,7 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-noir-950 px-4 relative overflow-hidden">
+      <div className="min-h-dvh flex items-center justify-center bg-noir-950 px-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(223,194,138,0.16),_transparent_45%)]" />
         <button
           onClick={toggleTheme}
@@ -313,8 +418,8 @@ function App() {
         </button>
         <form onSubmit={handleLogin} className="relative w-full max-w-sm bg-white rounded-3xl p-7 shadow-2xl space-y-5 border border-champagne-200">
           <div className="text-center">
-            <img src="/logo.jpeg" alt="Nurfa Essencial" className="w-20 h-20 rounded-full object-cover mx-auto ring-2 ring-champagne-300 shadow-lg" />
-            <h1 className="font-serif text-2xl font-bold text-noir-950 mt-3 tracking-[0.12em]">NURFA ESSENCIAL</h1>
+            <img src="/logo.jpeg" alt="Nurfa Essenci" className="w-20 h-20 rounded-full object-cover mx-auto ring-2 ring-champagne-300 shadow-lg" />
+            <h1 className="font-serif text-2xl font-bold text-noir-950 mt-3 tracking-[0.12em]">NURFA ESSENCI</h1>
             <p className="text-[10px] uppercase tracking-[0.35em] text-champagne-700 mt-1">Perfumería</p>
             <p className="text-xs text-slate-500 mt-3">Punto de venta y administración boutique</p>
           </div>
@@ -349,9 +454,9 @@ function App() {
             {loginBusy ? 'Entrando...' : 'Entrar al sistema'}
           </button>
           <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-            Admin: admin@nurfaessencial.com · Admin123!
+            Admin: admin@nurfaessenci.com · Admin123!
             <br />
-            Cajero: caja1@nurfaessencial.com · Admin123!
+            Cajero: caja1@nurfaessenci.com · Admin123!
           </p>
         </form>
       </div>
@@ -360,14 +465,14 @@ function App() {
 
   return (
     <>
-      <div className="flex flex-col overflow-hidden relative h-screen">
+      <div className="flex flex-col overflow-hidden relative h-dvh">
         <Toast message={toast.message} visible={toast.visible} onClose={() => setToast((current) => ({ ...current, visible: false }))} />
         <Header />
 
-        <div className="flex-1 flex overflow-hidden relative">
+        <div className="flex-1 flex overflow-hidden relative min-h-0">
           <Sidebar currentView={currentView} setCurrentView={(key) => setCurrentView(key as ViewName)} lowStockCount={lowStockCount} />
 
-          <main className="flex-1 overflow-hidden flex flex-col lg:flex-row relative">
+          <main className="flex-1 overflow-hidden flex flex-col lg:flex-row relative min-h-0">
             {currentView === 'pos' && (
               <>
                 <ProductCatalog
@@ -377,7 +482,7 @@ function App() {
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
                   addToCart={addToCart}
-                  openProductDetail={openProductDetail}
+                  openProductDetail={openPosPreview}
                 />
 
                 <CartPanel
@@ -452,6 +557,19 @@ function App() {
               }}
             />
 
+            <PosProductPreviewModal
+              isOpen={isPreviewOpen}
+              product={previewProduct}
+              decantMode={previewDecantMode}
+              maxMl={previewMaxMl}
+              onClose={() => setIsPreviewOpen(false)}
+              onAddUnit={(id) => {
+                addToCart(id)
+                setIsPreviewOpen(false)
+              }}
+              onAddDecant={addDecantToCart}
+            />
+
             <NewProductModal
               isOpen={isNewProductOpen}
               onClose={() => setIsNewProductOpen(false)}
@@ -464,10 +582,14 @@ function App() {
                     Descripcion: newProduct.description,
                     Categoria: newProduct.category,
                     Costo: newProduct.cost,
+                    PorcentajeGanancia: newProduct.percentage,
                     PrecioVenta: newProduct.price,
                     StockActual: newProduct.stock,
                     StockMinimo: newProduct.minStock,
-                    ImagenUrl: newProduct.image,
+                    Mililitros: newProduct.mililitros,
+                    Dicans: newProduct.diCans,
+                    PrecioPorMl: newProduct.pricePerMl,
+                    ImagenesUrls: newProduct.image,
                     Activo: true,
                   } as any)
                   const saved = mapProducto(response.data as any)

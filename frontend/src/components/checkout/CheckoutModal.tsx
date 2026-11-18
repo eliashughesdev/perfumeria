@@ -36,16 +36,16 @@ export function CheckoutModal({
   return (
     <div
       id="checkout-modal"
-      className={`fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 ${isOpen ? 'flex items-center justify-center p-4' : 'hidden'}`}
+      className={`fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 ${isOpen ? 'flex items-center justify-center p-3 sm:p-4' : 'hidden'}`}
     >
-      <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200">
-        <div className="bg-noir-950 text-white px-6 py-4 flex items-center justify-between">
+      <div className="bg-white rounded-2xl max-w-md w-full max-h-[92dvh] overflow-y-auto shadow-2xl border border-slate-200">
+        <div className="bg-noir-950 text-white px-4 sm:px-6 py-4 flex items-center justify-between">
           <h3 className="font-bold text-base">Finalizar Facturación</h3>
           <button onClick={onClose} className="text-noir-300 hover:text-white" disabled={isProcessing}>
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           <div className="bg-gradient-to-br from-champagne-50 to-cream p-4 rounded-xl text-center border border-champagne-200">
             <span className="text-[11px] text-noir-500 uppercase font-semibold tracking-wider">Total a Cobrar</span>
             <p id="modal-total-amount" className="text-3xl font-bold text-noir-950 mt-1">${total.toFixed(2)}</p>

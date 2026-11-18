@@ -1,4 +1,4 @@
-"""Configuración de pruebas para el backend NURFA ESSENCIAL POS.
+"""Configuración de pruebas para el backend NURFA ESSENCI POS.
 
 Usa SQLite en memoria para no depender de SQL Server durante los tests.
 Sobreescribe la dependencia get_db de la app FastAPI.
@@ -93,7 +93,7 @@ def client(db_session):
 def admin_user(db_session):
     user = Usuario(
         Nombre="Ana Gómez",
-        Email="admin@nurfaessencial.com",
+        Email="admin@nurfaessenci.com",
         PasswordHash=hash_password("Admin123!"),
         Rol="ROLE_ADMIN",
         Activo=True,
@@ -108,7 +108,7 @@ def admin_user(db_session):
 def cajero_user(db_session):
     user = Usuario(
         Nombre="Carlos Méndez",
-        Email="caja1@nurfaessencial.com",
+        Email="caja1@nurfaessenci.com",
         PasswordHash=hash_password("Admin123!"),
         Rol="ROLE_CAJERO",
         Activo=True,
@@ -132,7 +132,7 @@ def cajero_token(cajero_user):
 @pytest.fixture()
 def config_empresa(db_session):
     cfg = ConfiguracionEmpresa(
-        NombreComercial="NURFA ESSENCIAL PERFUMERÍA",
+        NombreComercial="NURFA ESSENCI PERFUMERÍA",
         RazonSocial="INVERSIONES AROMAS DEL CARIBE SRL",
         RNC="1-31-84920-5",
         NCFSerie="B02",

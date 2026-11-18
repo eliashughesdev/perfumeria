@@ -31,6 +31,17 @@ const bool = (raw: Raw | null | undefined, ...keys: string[]) => Boolean(value(r
 
 export function mapProducto(raw: Raw): Producto {
   const costo = value(raw, 'Costo', 'costo')
+  const porcentajeGanancia = value(raw, 'PorcentajeGanancia', 'porcentajeGanancia')
+  const di_cans = bool(raw, 'Dicans', 'dicans')
+  const imagenesUrls = value(raw, 'ImagenesUrls', 'imagenesUrls')
+  const mililitros = value(raw, 'Mililitros', 'mililitros')
+  const mililitrosDisponibles = value(raw, 'MililitrosDisponibles', 'mililitrosDisponibles')
+  const precioPorMl = value(raw, 'PrecioPorMl', 'precioPorMl')
+  let precioVenta = number(raw, 'PrecioVenta', 'precioVenta')
+  // Si no hay precioVenta en el backend, calcularlo a partir de costo y porcentajeGanancia
+  if (!precioVenta && costo !== undefined && costo !== null && porcentajeGanancia !== undefined) {
+    precioVenta = Math.round((costo * (1 + porcentajeGanancia / 100)) * 100) / 100
+  }
   return {
     id: Number(value(raw, 'Id', 'id') ?? 0),
     sku: String(value(raw, 'SKU', 'sku') ?? ''),
@@ -38,10 +49,16 @@ export function mapProducto(raw: Raw): Producto {
     descripcion: value(raw, 'Descripcion', 'descripcion') ?? null,
     categoria: String(value(raw, 'Categoria', 'categoria') ?? 'Damas'),
     costo: costo === undefined || costo === null ? null : Number(costo),
-    precioVenta: number(raw, 'PrecioVenta', 'precioVenta'),
+    porcentajeGanancia: porcentajeGanancia === undefined || porcentajeGanancia === null ? null : Number(porcentajeGanancia),
+    di_cans,
+    precioVenta: precioVenta,
     stockActual: number(raw, 'StockActual', 'stockActual'),
     stockMinimo: number(raw, 'StockMinimo', 'stockMinimo'),
-    imagenUrl: value(raw, 'ImagenUrl', 'imagenUrl') ?? null,
+    imagenesUrls: imagenesUrls ?? null,
+    mililitros: mililitros === undefined || mililitros === null ? null : Number(mililitros),
+    mililitrosDisponibles:
+      mililitrosDisponibles === undefined || mililitrosDisponibles === null ? 0 : Number(mililitrosDisponibles),
+    precioPorMl: precioPorMl === undefined || precioPorMl === null ? 0 : Number(precioPorMl),
     activo: bool(raw, 'Activo', 'activo'),
     fechaCreacion: value(raw, 'FechaCreacion', 'fechaCreacion'),
     fechaActualizacion: value(raw, 'FechaActualizacion', 'fechaActualizacion'),
@@ -90,6 +107,7 @@ export function mapVenta(raw: Raw): Venta {
       cantidad: number(detalle, 'Cantidad', 'cantidad'),
       precioUnitario: number(detalle, 'PrecioUnitario', 'precioUnitario'),
       importe: number(detalle, 'Importe', 'importe'),
+      esDecant: bool(detalle, 'EsDecant', 'esDecant'),
     })),
   }
 }
@@ -217,6 +235,7 @@ export function mapInvoice(raw: Raw): InvoiceData {
       nombre: item.nombre ?? '',
       precioUnitario: Number(item.precio_unitario ?? item.precioUnitario ?? 0),
       importe: Number(item.importe ?? 0),
+      esDecant: Boolean(item.es_decant ?? item.esDecant ?? false),
     })),
     totales: {
       subtotal: Number(totales.subtotal ?? 0),

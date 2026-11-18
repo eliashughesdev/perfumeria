@@ -216,7 +216,7 @@ export function ConfiguracionView({ showToast, onCompanyUpdated }: Configuracion
                   <ImageIcon className="w-10 h-10 text-champagne-400" />
                 )}
               </div>
-              <p className="text-xs font-semibold text-slate-700 mt-3">Nurfa Essencial Perfumería</p>
+              <p className="text-xs font-semibold text-slate-700 mt-3">Nurfa Essenci Perfumería</p>
               <p className="text-[11px] text-slate-400">Identidad visual para tickets y pantalla</p>
             </div>
 
@@ -308,6 +308,10 @@ export function ConfiguracionView({ showToast, onCompanyUpdated }: Configuracion
                 <p className="font-bold text-[11px] uppercase">{ticket.tituloTicket}</p>
                 <p>{empresa.razonSocial}</p>
                 <p>RNC: {empresa.rnc}</p>
+                {empresa.direccion && <p>Dirección: {empresa.direccion}</p>}
+                {empresa.ciudad && <p>{empresa.ciudad}, Rep. Dom.</p>}
+                {empresa.telefono && <p>Tel.: {empresa.telefono}</p>}
+                {empresa.email && <p>Correo: {empresa.email}</p>}
               </div>
               <div className="space-y-0.5 border-b border-dashed border-slate-400 pb-2 mb-2">
                 <div className="flex justify-between"><span>FACTURA:</span><span>{ticket.prefijoFactura}-B02-000001</span></div>

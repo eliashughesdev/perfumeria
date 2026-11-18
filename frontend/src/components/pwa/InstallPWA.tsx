@@ -71,7 +71,7 @@ export function InstallPWA() {
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-800">Instalar NURFA POS en iPhone/iPad</h3>
+                <h3 className="text-sm font-bold text-slate-800">Instalar NURFA ESSENCI POS en iPhone/iPad</h3>
                 <p className="mt-1 text-xs text-slate-500">Sigue estos pasos desde Safari:</p>
               </div>
               <button onClick={() => setShowIOSHelp(false)} className="p-1 text-slate-400" aria-label="Cerrar">

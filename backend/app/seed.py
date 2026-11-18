@@ -1,4 +1,4 @@
-"""Datos iniciales de Nurfa Essencial Perfumería.
+"""Datos iniciales de Nurfa Essenci Perfumería.
 
 Ejecución manual: `python -m app.seed`
 También se ejecuta al iniciar si AUTO_SEED=true y la base está vacía.
@@ -31,7 +31,7 @@ def run_seed() -> None:
                 [
                     Usuario(
                         Nombre="Administradora Nurfa",
-                        Email="admin@nurfaessencial.com",
+                        Email="admin@nurfaessenci.com",
                         PasswordHash=hash_password("Admin123!"),
                         Rol="ROLE_ADMIN",
                         Permisos=serialize_permissions(DEFAULT_ROLE_PERMISSIONS["ROLE_ADMIN"]),
@@ -39,7 +39,7 @@ def run_seed() -> None:
                     ),
                     Usuario(
                         Nombre="Cajero Nurfa",
-                        Email="caja1@nurfaessencial.com",
+                        Email="caja1@nurfaessenci.com",
                         PasswordHash=hash_password("Admin123!"),
                         Rol="ROLE_CAJERO",
                         Permisos=serialize_permissions(DEFAULT_ROLE_PERMISSIONS["ROLE_CAJERO"]),
@@ -76,4 +76,4 @@ def run_seed() -> None:
 
 if __name__ == "__main__":
     run_seed()
-    print("Datos iniciales de Nurfa Essencial cargados correctamente.")
+    print("Datos iniciales de Nurfa Essenci cargados correctamente.")

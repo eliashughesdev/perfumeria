@@ -14,21 +14,25 @@ interface InvoiceEditModalProps {
 }
 
 interface EditableItem {
+  lineId: string
   idProducto: number
   sku: string
   nombreProducto: string
   cantidad: number
   precioUnitario: number
+  esDecant: boolean
 }
 
 export function InvoiceEditModal({ sale, products, taxRate, onClose, onSaved, showToast }: InvoiceEditModalProps) {
   const [items, setItems] = useState<EditableItem[]>(
     (sale.detalles ?? []).map((detail: DetalleVenta) => ({
+      lineId: `${detail.idProducto}-${detail.esDecant ? 'dec' : 'reg'}`,
       idProducto: detail.idProducto,
       sku: detail.sku ?? '',
       nombreProducto: detail.nombreProducto ?? '',
       cantidad: detail.cantidad,
       precioUnitario: detail.precioUnitario,
+      esDecant: Boolean(detail.esDecant),
     })),
   )
   const [discount, setDiscount] = useState(sale.descuentoPorcentaje)
@@ -48,32 +52,34 @@ export function InvoiceEditModal({ sale, products, taxRate, onClose, onSaved, sh
     const product = products.find((item) => item.id === Number(selectedProduct))
     if (!product) return
     setItems((current) => {
-      const existing = current.find((item) => item.idProducto === product.id)
+      const existing = current.find((item) => item.idProducto === product.id && !item.esDecant)
       if (existing) {
         return current.map((item) =>
-          item.idProducto === product.id ? { ...item, cantidad: item.cantidad + 1 } : item,
+          item.idProducto === product.id && !item.esDecant ? { ...item, cantidad: item.cantidad + 1 } : item,
         )
       }
       return [
         ...current,
         {
+          lineId: `${product.id}-reg`,
           idProducto: product.id,
           sku: product.sku,
           nombreProducto: product.nombre,
           cantidad: 1,
           precioUnitario: product.precioVenta,
+          esDecant: false,
         },
       ]
     })
     setSelectedProduct('')
   }
 
-  const updateItem = (productId: number, changes: Partial<EditableItem>) => {
-    setItems((current) => current.map((item) => (item.idProducto === productId ? { ...item, ...changes } : item)))
+  const updateItem = (lineId: string, changes: Partial<EditableItem>) => {
+    setItems((current) => current.map((item) => (item.lineId === lineId ? { ...item, ...changes } : item)))
   }
 
-  const removeItem = (productId: number) => {
-    setItems((current) => current.filter((item) => item.idProducto !== productId))
+  const removeItem = (lineId: string) => {
+    setItems((current) => current.filter((item) => item.lineId !== lineId))
   }
 
   const save = async () => {
@@ -98,6 +104,7 @@ export function InvoiceEditModal({ sale, products, taxRate, onClose, onSaved, sh
           NombreProducto: item.nombreProducto,
           Cantidad: item.cantidad,
           PrecioUnitario: item.precioUnitario,
+          EsDecant: item.esDecant,
         })),
       } as any)
       onSaved(mapVenta(response.data as any))
@@ -111,8 +118,8 @@ export function InvoiceEditModal({ sale, products, taxRate, onClose, onSaved, sh
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[94vh] overflow-hidden shadow-2xl flex flex-col">
+    <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[92dvh] overflow-y-auto shadow-2xl flex flex-col">
         <div className="bg-noir-950 text-white px-5 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <ReceiptText className="w-4 h-4 text-champagne-400" />
@@ -126,7 +133,7 @@ export function InvoiceEditModal({ sale, products, taxRate, onClose, onSaved, sh
           </button>
         </div>
 
-        <div className="p-5 space-y-4 overflow-y-auto text-xs">
+        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto text-xs">
           {sale.cajaCerrada && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800">
               Esta factura pertenece a un turno cerrado. Se actualizarán la factura, el stock y el movimiento de caja;
@@ -190,19 +197,35 @@ export function InvoiceEditModal({ sale, products, taxRate, onClose, onSaved, sh
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {items.map((item) => (
-                    <tr key={item.idProducto}>
+                    <tr key={item.lineId}>
                       <td className="px-3 py-2">
-                        <p className="font-semibold text-slate-700">{item.nombreProducto}</p>
+                        <p className="font-semibold text-slate-700">
+                          {item.nombreProducto}
+                          {item.esDecant && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-champagne-100 text-champagne-800 text-[9px] font-bold uppercase align-middle">
+                              Decant
+                            </span>
+                          )}
+                        </p>
                         <p className="text-[10px] text-slate-400 font-mono">{item.sku}</p>
                       </td>
                       <td className="px-3 py-2">
                         <input
                           type="number"
-                          min="1"
+                          min={item.esDecant ? 5 : 1}
+                          step={item.esDecant ? 5 : 1}
                           value={item.cantidad}
-                          onChange={(e) => updateItem(item.idProducto, { cantidad: Math.max(1, parseInt(e.target.value) || 1) })}
+                          onChange={(e) =>
+                            updateItem(item.lineId, {
+                              cantidad: Math.max(
+                                item.esDecant ? 5 : 1,
+                                parseInt(e.target.value) || (item.esDecant ? 5 : 1),
+                              ),
+                            })
+                          }
                           className="w-full px-2 py-1.5 border border-slate-300 rounded-lg"
                         />
+                        {item.esDecant && <p className="text-[9px] text-slate-400 mt-0.5">ml</p>}
                       </td>
                       <td className="px-3 py-2">
                         <input
@@ -210,13 +233,14 @@ export function InvoiceEditModal({ sale, products, taxRate, onClose, onSaved, sh
                           min="0"
                           step="0.01"
                           value={item.precioUnitario}
-                          onChange={(e) => updateItem(item.idProducto, { precioUnitario: Math.max(0, parseFloat(e.target.value) || 0) })}
+                          onChange={(e) => updateItem(item.lineId, { precioUnitario: Math.max(0, parseFloat(e.target.value) || 0) })}
                           className="w-full px-2 py-1.5 border border-slate-300 rounded-lg"
                         />
+                        {item.esDecant && <p className="text-[9px] text-slate-400 mt-0.5">por ml</p>}
                       </td>
                       <td className="px-3 py-2 text-right font-bold text-slate-700">${(item.cantidad * item.precioUnitario).toFixed(2)}</td>
                       <td className="px-3 py-2">
-                        <button onClick={() => removeItem(item.idProducto)} className="p-1 rounded text-rose-500 hover:bg-rose-50" title="Quitar de la factura">
+                        <button onClick={() => removeItem(item.lineId)} className="p-1 rounded text-rose-500 hover:bg-rose-50" title="Quitar de la factura">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </td>

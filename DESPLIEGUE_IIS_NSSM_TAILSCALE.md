@@ -1,5 +1,5 @@
 #=============================================================================
-# NURFA ESSENCIAL POS - Guía de Despliegue On-Premise (Windows Server + IIS + NSSM)
+# NURFA ESSENCI POS - Guía de Despliegue On-Premise (Windows Server + IIS + NSSM)
 #=============================================================================
 # Frontend: React + TypeScript + Tailwind (puerto 3050 -> IIS estático)
 # Backend:  FastAPI + SQL Server (puerto 8050 -> NSSM servicio Windows)
@@ -115,7 +115,7 @@ PASO 3: INSTALAR FASTAPI COMO SERVICIO WINDOWS CON NSSM
 3.3 Configurar el servicio
 
     nssm set NurfaPOSAPI Directory "C:\inetpub\nurfa-pos\backend"
-    nssm set NurfaPOSAPI Description "NURFA ESSENCIAL POS - API FastAPI en puerto 8050"
+    nssm set NurfaPOSAPI Description "NURFA ESSENCI POS - API FastAPI en puerto 8050"
     nssm set NurfaPOSAPI Start SERVICE_AUTO_START
     nssm set NurfaPOSAPI RestartDelay 5000
     nssm set NurfaPOSAPI ThrottleReset 10000
@@ -147,10 +147,10 @@ PASO 4: BUILD Y DESPLEGUE DEL FRONTEND REACT (PUERTO 3050 -> IIS)
 4.2 Copiar archivos estáticos a IIS
 
     Crear sitio web en IIS:
-      - Nombre del sitio: NURFA ESSENCIAL POS
+      - Nombre del sitio: NURFA ESSENCI POS
       - Ruta física: C:\inetpub\nurfa-pos\frontend (o donde copie dist/)
       - Puerto: 80 (o 443 con SSL)
-      - Nombre de host: pos.nurfaessencial.local (o IP del servidor)
+      - Nombre de host: pos.nurfaessenci.local (o IP del servidor)
 
     Copiar el contenido de dist/ a la ruta física del sitio IIS.
     Copiar también el archivo web.config proporcionado en esta guía.
@@ -169,15 +169,15 @@ PASO 4: BUILD Y DESPLEGUE DEL FRONTEND REACT (PUERTO 3050 -> IIS)
 4.4 Verificar el frontend
 
     http://localhost/          (o http://<IP-servidor>/)
-    Debería cargar la aplicación NURFA ESSENCIAL POS.
+    Debería cargar la aplicación NURFA ESSENCI POS.
 
 ===============================================================================
 PASO 5: CONFIGURAR FIREWALL DE WINDOWS
 ===============================================================================
 
-    New-NetFirewallRule -DisplayName "NURFA ESSENCIAL POS API" -Direction Inbound -Protocol TCP -LocalPort 8050 -Action Allow
-    New-NetFirewallRule -DisplayName "NURFA ESSENCIAL POS Web" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
-    New-NetFirewallRule -DisplayName "NURFA ESSENCIAL POS Web SSL" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
+    New-NetFirewallRule -DisplayName "NURFA ESSENCI POS API" -Direction Inbound -Protocol TCP -LocalPort 8050 -Action Allow
+    New-NetFirewallRule -DisplayName "NURFA ESSENCI POS Web" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
+    New-NetFirewallRule -DisplayName "NURFA ESSENCI POS Web SSL" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
 
 ===============================================================================
 PASO 6: CONFIGURAR TAILSCALE PARA DISPOSITIVOS MÓVILES
@@ -231,7 +231,7 @@ PASO 7: SSL / HTTPS (RECOMENDADO PARA PRODUCCIÓN)
 
 7.2 Vincular en IIS
 
-    - Sitio web NURFA ESSENCIAL POS > Enlaces > Agregar
+    - Sitio web NURFA ESSENCI POS > Enlaces > Agregar
     - Tipo: https
     - Puerto: 443
     - Certificado: seleccionar el certificado instalado
@@ -243,7 +243,7 @@ PASO 7: SSL / HTTPS (RECOMENDADO PARA PRODUCCIÓN)
 
 7.4 Actualizar CORS en .env
 
-    CORS_ORIGINS=https://pos.nurfaessencial.com,https://<ip-tailscale>
+    CORS_ORIGINS=https://pos.nurfaessenci.com,https://<ip-tailscale>
 
 ===============================================================================
 PASO 8: USUARIOS POR DEFECTO Y CREDENCIALES
@@ -251,8 +251,8 @@ PASO 8: USUARIOS POR DEFECTO Y CREDENCIALES
 
 Tras ejecutar el script DDL, los usuarios creados son:
 
-  Usuario: admin@nurfaessencial.com     | Rol: ROLE_ADMIN   | Contraseña: Admin123!
-  Usuario: caja1@nurfaessencial.com   | Rol: ROLE_CAJERO  | Contraseña: Admin123!
+  Usuario: admin@nurfaessenci.com     | Rol: ROLE_ADMIN   | Contraseña: Admin123!
+  Usuario: caja1@nurfaessenci.com   | Rol: ROLE_CAJERO  | Contraseña: Admin123!
 
 IMPORTANTE: Cambiar las contraseñas en producción tras el primer inicio.
 

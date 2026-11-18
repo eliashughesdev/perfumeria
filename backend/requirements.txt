@@ -1,4 +1,4 @@
-# Backend NURFA ESSENCIAL POS - FastAPI + SQL Server
+# Backend NURFA ESSENCI POS - FastAPI + SQL Server
 fastapi==0.111.0
 uvicorn[standard]==0.30.6
 pydantic-settings==2.3.0

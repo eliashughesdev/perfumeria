@@ -120,7 +120,7 @@ export function CajaView({ showToast }: CajaViewProps) {
   const difference = parseFloat(counted || '0') - expected
 
   return (
-    <section id="view-caja" className="view-section flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+    <section id="view-caja" className="view-section flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Control de Caja y Turnos</h2>

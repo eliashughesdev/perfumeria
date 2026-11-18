@@ -42,7 +42,7 @@ export function InventarioView({
   const inventoryValue = products.reduce((sum, p) => sum + p.precioVenta * p.stockActual, 0)
 
   return (
-    <section id="view-inventario" className="view-section flex-1 overflow-y-auto p-4 lg:p-6 space-y-5">
+    <section id="view-inventario" className="view-section flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Inventario de Fragancias</h2>
@@ -131,8 +131,8 @@ export function InventarioView({
                       <td className="px-5 py-3.5">
                         <button onClick={() => openProductDetail(product.id)} className="flex items-center gap-3 text-left">
                           <div className="w-10 h-10 rounded-lg overflow-hidden bg-gradient-to-br from-champagne-100 to-champagne-200 flex items-center justify-center shrink-0">
-                            {product.imagenUrl ? (
-                              <img src={product.imagenUrl} alt={product.nombre} className="w-full h-full object-cover" />
+                            {product.imagenesUrls?.split(",")[0] ? (
+                              <img src={product.imagenesUrls?.split(",")[0]} alt={product.nombre} className="w-full h-full object-cover" />
                             ) : (
                               <span className="font-serif text-[8px] font-bold text-noir-800">NURFA</span>
                             )}

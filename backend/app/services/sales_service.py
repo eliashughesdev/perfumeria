@@ -1,5 +1,6 @@
 """Reglas de negocio para ventas, edición de facturas y cálculo fiscal."""
 
+import math
 from decimal import Decimal
 from typing import Iterable, List
 
@@ -37,26 +38,88 @@ def _generar_numero_factura(db: Session, serie: str, prefijo: str) -> str:
     return f"{base}{numero:06d}"
 
 
-def _validar_stock(db: Session, detalles: List[dict]) -> dict[int, Producto]:
-    cantidades: dict[int, int] = {}
+def _planificar_stock(db: Session, detalles: List[dict]):
+    """Valida stock y calcula cuántos frascos completos y ml de decants se consumen."""
+    cantidades_regular: dict[int, int] = {}
+    ml_decant: dict[int, int] = {}
     for detalle in detalles:
-        cantidades[detalle["IdProducto"]] = cantidades.get(detalle["IdProducto"], 0) + detalle["Cantidad"]
+        producto_id = detalle["IdProducto"]
+        if detalle.get("EsDecant"):
+            ml = int(detalle["Cantidad"])
+            if ml <= 0 or ml % 5 != 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Los decants deben venderse en múltiplos de 5 ml.",
+                )
+            ml_decant[producto_id] = ml_decant.get(producto_id, 0) + ml
+        else:
+            cantidades_regular[producto_id] = cantidades_regular.get(producto_id, 0) + int(detalle["Cantidad"])
 
     productos: dict[int, Producto] = {}
-    for producto_id, cantidad in cantidades.items():
+    for producto_id in set(cantidades_regular) | set(ml_decant):
         producto = db.query(Producto).filter(Producto.Id == producto_id, Producto.Activo == True).first()
         if not producto:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Producto {producto_id} no encontrado",
             )
-        if producto.StockActual < cantidad:
+        regular = cantidades_regular.get(producto_id, 0)
+        ml = ml_decant.get(producto_id, 0)
+        botellas = 0
+        if ml > 0:
+            if not producto.Dicans:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{producto.Nombre} no está habilitado para decants.",
+                )
+            if (producto.Mililitros or 0) <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{producto.Nombre} no tiene contenido en ml configurado.",
+                )
+            disponibles = producto.MililitrosDisponibles or 0
+            if ml > disponibles:
+                botellas = math.ceil((ml - disponibles) / producto.Mililitros)
+        requeridas = regular + botellas
+        if producto.StockActual < requeridas:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Stock insuficiente para {producto.Nombre}. Disponible: {producto.StockActual}",
+                detail=(
+                    f"Stock insuficiente para {producto.Nombre}. "
+                    f"Frascos completos disponibles: {producto.StockActual}."
+                ),
             )
-        productos[producto.Id] = producto
-    return productos
+        productos[producto_id] = producto
+    return productos, cantidades_regular, ml_decant
+
+
+def _aplicar_stock(
+    productos: dict[int, Producto],
+    cantidades_regular: dict[int, int],
+    ml_decant: dict[int, int],
+) -> None:
+    for producto_id, producto in productos.items():
+        regular = cantidades_regular.get(producto_id, 0)
+        ml = ml_decant.get(producto_id, 0)
+        if ml > 0:
+            disponibles = producto.MililitrosDisponibles or 0
+            botellas = math.ceil((ml - disponibles) / producto.Mililitros) if ml > disponibles else 0
+            producto.StockActual -= regular + botellas
+            producto.MililitrosDisponibles = disponibles + botellas * producto.Mililitros - ml
+        else:
+            producto.StockActual -= regular
+
+
+def _devolver_ml(producto: Producto, ml: int) -> None:
+    """Devuelve ml al inventario, convirtiendo frascos completos de nuevo en stock."""
+    if ml <= 0:
+        return
+    producto.MililitrosDisponibles = (producto.MililitrosDisponibles or 0) + ml
+    tamano = producto.Mililitros or 0
+    if tamano > 0:
+        while producto.MililitrosDisponibles >= tamano:
+            producto.MililitrosDisponibles -= tamano
+            producto.StockActual += 1
 
 
 def _detalles_dict(detalles: Iterable) -> List[dict]:
@@ -69,7 +132,7 @@ def crear_venta(db: Session, venta_in: VentaCreate, current_user: Usuario) -> Ve
     itbis_pct = company.ITBISPorcentaje
 
     detalles = _detalles_dict(venta_in.Detalles)
-    productos = _validar_stock(db, detalles)
+    productos, cantidades_regular, ml_decant = _planificar_stock(db, detalles)
 
     subtotal, descuento_monto, base_imponible, itbis, total = calcular_totales(
         detalles, venta_in.DescuentoPorcentaje, itbis_pct
@@ -111,9 +174,11 @@ def crear_venta(db: Session, venta_in: VentaCreate, current_user: Usuario) -> Ve
                 Cantidad=detalle["Cantidad"],
                 PrecioUnitario=detalle["PrecioUnitario"],
                 Importe=detalle["PrecioUnitario"] * detalle["Cantidad"],
+                EsDecant=bool(detalle.get("EsDecant")),
             )
         )
-        producto.StockActual -= detalle["Cantidad"]
+
+    _aplicar_stock(productos, cantidades_regular, ml_decant)
 
     db.add(
         MovimientoCaja(
@@ -146,18 +211,13 @@ def editar_venta(db: Session, venta_id: int, datos: EditarVentaRequest, current_
     for detalle_anterior in venta.detalles:
         producto = db.query(Producto).filter(Producto.Id == detalle_anterior.IdProducto).first()
         if producto:
-            producto.StockActual += detalle_anterior.Cantidad
+            if detalle_anterior.EsDecant:
+                _devolver_ml(producto, detalle_anterior.Cantidad)
+            else:
+                producto.StockActual += detalle_anterior.Cantidad
 
     nuevos = _detalles_dict(datos.Detalles)
-    productos = _validar_stock(db, nuevos)
-    for producto in productos.values():
-        cantidad = sum(item["Cantidad"] for item in nuevos if item["IdProducto"] == producto.Id)
-        if producto.StockActual < cantidad:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Stock insuficiente para {producto.Nombre}. Disponible: {producto.StockActual}",
-            )
-        producto.StockActual -= cantidad
+    productos, cantidades_regular, ml_decant = _planificar_stock(db, nuevos)
 
     for detalle_anterior in list(venta.detalles):
         db.delete(detalle_anterior)
@@ -174,8 +234,11 @@ def editar_venta(db: Session, venta_id: int, datos: EditarVentaRequest, current_
                 Cantidad=detalle["Cantidad"],
                 PrecioUnitario=detalle["PrecioUnitario"],
                 Importe=detalle["PrecioUnitario"] * detalle["Cantidad"],
+                EsDecant=bool(detalle.get("EsDecant")),
             )
         )
+
+    _aplicar_stock(productos, cantidades_regular, ml_decant)
 
     descuento_pct = datos.DescuentoPorcentaje if datos.DescuentoPorcentaje is not None else venta.DescuentoPorcentaje
     subtotal, descuento_monto, base_imponible, itbis, total = calcular_totales(nuevos, descuento_pct, company.ITBISPorcentaje)
@@ -233,6 +296,7 @@ def venta_a_out(venta: Venta, caja_cerrada: bool | None = None) -> VentaOut:
             Cantidad=detalle.Cantidad,
             PrecioUnitario=detalle.PrecioUnitario,
             Importe=detalle.Importe,
+            EsDecant=detalle.EsDecant,
         )
         for detalle in venta.detalles
     ]

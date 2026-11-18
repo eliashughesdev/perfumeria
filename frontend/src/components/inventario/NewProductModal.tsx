@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Camera, Upload, X, Loader2 } from 'lucide-react'
+
+const generateSku = () => `NUR-${Date.now().toString().slice(-6)}`
 
 interface NewProductModalProps {
   isOpen: boolean
@@ -10,9 +12,13 @@ interface NewProductModalProps {
     description: string
     category: string
     cost: number
+    percentage: number
     price: number
     stock: number
     minStock: number
+    mililitros: number
+    diCans: boolean
+    pricePerMl: number
     image: string | null
   }) => Promise<void>
   canCreate: boolean
@@ -27,8 +33,19 @@ export function NewProductModal({ isOpen, onClose, onSave, canCreate }: NewProdu
   const [stock, setStock] = useState('10')
   const [minStock, setMinStock] = useState('4')
   const [cost, setCost] = useState('85')
-  const [price, setPrice] = useState('165')
+  const [margin, setMargin] = useState('40')
+  const [mililitros, setMililitros] = useState('100')
+  const [diCans, setDiCans] = useState(false)
+  const [pricePerMl, setPricePerMl] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const costValue = parseFloat(cost) || 0
+  const marginValue = parseFloat(margin) || 0
+  const price = Math.round(costValue * (1 + marginValue / 100) * 100) / 100
+
+  useEffect(() => {
+    if (isOpen) setSku(generateSku())
+  }, [isOpen])
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -50,7 +67,10 @@ export function NewProductModal({ isOpen, onClose, onSave, canCreate }: NewProdu
     setStock('10')
     setMinStock('4')
     setCost('85')
-    setPrice('165')
+    setMargin('40')
+    setMililitros('100')
+    setDiCans(false)
+    setPricePerMl('')
     setPhotoDataUrl(null)
   }
 
@@ -59,14 +79,18 @@ export function NewProductModal({ isOpen, onClose, onSave, canCreate }: NewProdu
     setSaving(true)
     try {
       await onSave({
-        sku: sku.trim() || `NUR-${String(Date.now()).slice(-6)}`,
+        sku: sku.trim() || generateSku(),
         name: name.trim(),
         description: description.trim(),
         category,
-        cost: parseFloat(cost) || 0,
-        price: parseFloat(price) || 0,
+        cost: costValue,
+        percentage: marginValue,
+        price,
         stock: parseInt(stock) || 0,
         minStock: parseInt(minStock) || 0,
+        mililitros: parseInt(mililitros) || 0,
+        diCans,
+        pricePerMl: diCans ? parseFloat(pricePerMl) || 0 : 0,
         image: photoDataUrl,
       })
       reset()
@@ -80,16 +104,16 @@ export function NewProductModal({ isOpen, onClose, onSave, canCreate }: NewProdu
   return (
     <div
       id="new-product-modal"
-      className={`fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 ${isOpen ? 'flex items-center justify-center p-4 no-print' : 'hidden no-print'}`}
+      className={`fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 ${isOpen ? 'flex items-center justify-center p-3 sm:p-4 no-print' : 'hidden no-print'}`}
     >
-      <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl max-h-[94vh] flex flex-col">
-        <div className="bg-noir-950 text-white px-6 py-4 flex items-center justify-between shrink-0">
+      <div className="bg-white rounded-2xl max-w-lg w-full overflow-y-auto shadow-2xl max-h-[92dvh] flex flex-col">
+        <div className="bg-noir-950 text-white px-4 sm:px-6 py-4 flex items-center justify-between shrink-0">
           <h3 className="font-bold text-base">Registrar Nueva Fragancia</h3>
           <button onClick={onClose} className="text-noir-300 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-3.5 text-xs overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-3.5 text-xs overflow-y-auto">
           <div>
             <label className="font-semibold text-slate-700 block mb-1.5">Fotografía del Perfume</label>
             <div className="flex items-center gap-3.5">
@@ -153,7 +177,7 @@ export function NewProductModal({ isOpen, onClose, onSave, canCreate }: NewProdu
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="font-semibold text-slate-700 block mb-1">Categoría</label>
               <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl">
@@ -162,6 +186,10 @@ export function NewProductModal({ isOpen, onClose, onSave, canCreate }: NewProdu
                 <option value="Unisex">Unisex</option>
                 <option value="Nicho">Árabes / Nicho</option>
               </select>
+            </div>
+            <div>
+              <label className="font-semibold text-slate-700 block mb-1">Contenido (ml)</label>
+              <input type="number" value={mililitros} onChange={(e) => setMililitros(e.target.value)} required min="1" className="w-full px-3 py-2 border border-slate-300 rounded-xl" />
             </div>
             <div>
               <label className="font-semibold text-slate-700 block mb-1">Stock Inicial</label>
@@ -180,7 +208,43 @@ export function NewProductModal({ isOpen, onClose, onSave, canCreate }: NewProdu
             </div>
             <div>
               <label className="font-semibold text-slate-700 block mb-1">Precio Venta ($)</label>
-              <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required step="0.01" min="0" className="w-full px-3 py-2 border border-slate-300 rounded-xl" />
+              <input
+                type="text"
+                value={price.toFixed(2)}
+                readOnly
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-slate-50 font-bold text-noir-900"
+                title="Calculado automáticamente: costo + porcentaje de ganancia"
+              />
+            </div>
+            <div>
+              <label className="font-semibold text-slate-700 block mb-1">Porcentaje de Ganancia (%)</label>
+              <input type="number" value={margin} onChange={(e) => setMargin(e.target.value)} required step="0.01" min="0" className="w-full px-3 py-2 border border-slate-300 rounded-xl" />
+            </div>
+            <div className="flex items-end">
+              <p className="text-[10px] text-slate-500 leading-tight pb-2">
+                Precio final = costo + {marginValue || 0}% de ganancia
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 items-end">
+            <label className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" checked={diCans} onChange={(e) => setDiCans(e.target.checked)} className="accent-noir-900" />
+              Habilitar Decants
+            </label>
+            <div>
+              <label className="font-semibold text-slate-700 block mb-1">Precio por ml ($)</label>
+              <input
+                type="number"
+                value={pricePerMl}
+                onChange={(e) => setPricePerMl(e.target.value)}
+                required={diCans}
+                disabled={!diCans}
+                step="0.01"
+                min="0"
+                placeholder={diCans ? 'Ej. 1.50' : 'Active Decants'}
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl disabled:bg-slate-100 disabled:text-slate-400"
+              />
             </div>
           </div>
 

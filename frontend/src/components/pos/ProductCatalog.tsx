@@ -20,7 +20,7 @@ export function ProductCatalog({
   addToCart,
   openProductDetail,
 }: ProductCatalogProps) {
-  const categories = ['Todos', 'Damas', 'Caballeros', 'Unisex', 'Nicho']
+  const categories = ['Todos', 'Damas', 'Caballeros', 'Unisex', 'Nicho', 'Decants']
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden p-4 lg:p-5">
@@ -62,22 +62,31 @@ export function ProductCatalog({
         ) : (
           products.map((product) => {
             const lowStock = product.stockActual <= product.stockMinimo
+            const isDecantView = currentCategory === 'Decants' && Boolean(product.di_cans)
+            const availableMl =
+              (product.mililitrosDisponibles ?? 0) + product.stockActual * (product.mililitros ?? 0)
             return (
               <div
                 key={product.id}
                 onClick={() => openProductDetail(product.id)}
                 className="group bg-white rounded-2xl border border-slate-200/90 p-3 flex flex-col justify-between cursor-pointer hover:border-champagne-500 hover:shadow-md transition relative overflow-hidden"
               >
-                {lowStock && (
-                  <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold z-10 shadow-sm">
-                    Quedan {product.stockActual}
+                {isDecantView ? (
+                  <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-champagne-100 text-champagne-800 text-[10px] font-bold z-10 shadow-sm">
+                    {availableMl} ml
                   </span>
+                ) : (
+                  lowStock && (
+                    <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold z-10 shadow-sm">
+                      Quedan {product.stockActual}
+                    </span>
+                  )
                 )}
 
-                {product.imagenUrl ? (
+                {product.imagenesUrls?.split(",")[0] ? (
                   <div className="h-28 rounded-xl mb-3 overflow-hidden bg-slate-100 relative">
                     <img
-                      src={product.imagenUrl}
+                      src={product.imagenesUrls?.split(",")[0]}
                       alt={product.nombre}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
@@ -103,14 +112,27 @@ export function ProductCatalog({
                 </div>
 
                 <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                  <span className="font-bold text-sm text-noir-900">${product.precioVenta.toFixed(2)}</span>
+                  {isDecantView ? (
+                    <div className="leading-tight">
+                      <span className="font-bold text-sm text-noir-900">${(product.precioPorMl ?? 0).toFixed(2)}/ml</span>
+                      <p className="text-[10px] text-champagne-700 font-medium">
+                        5 ml = ${((product.precioPorMl ?? 0) * 5).toFixed(2)}
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="font-bold text-sm text-noir-900">${product.precioVenta.toFixed(2)}</span>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      addToCart(product.id)
+                      if (isDecantView) {
+                        openProductDetail(product.id)
+                      } else {
+                        addToCart(product.id)
+                      }
                     }}
                     className="w-8 h-8 rounded-lg bg-champagne-100 text-noir-900 hover:bg-noir-950 hover:text-champagne-300 flex items-center justify-center transition shadow-sm"
-                    title="Agregar directo a la factura"
+                    title={isDecantView ? 'Elegir mililitros' : 'Agregar directo a la factura'}
                   >
                     <Plus className="w-4 h-4" />
                   </button>

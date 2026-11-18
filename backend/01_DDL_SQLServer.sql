@@ -1,5 +1,5 @@
 /********************************************************************************
- * NURFA ESSENCIAL PERFUMERÍA - Sistema Integral POS
+ * NURFA ESSENCI PERFUMERÍA - Sistema Integral POS
  * Base de Datos: Microsoft SQL Server
  * Script DDL - Fase 1: Estructura inicial
  ********************************************************************************/
@@ -49,7 +49,7 @@ GO
 
 CREATE TABLE dbo.ConfiguracionEmpresa (
     Id INT IDENTITY(1,1) NOT NULL,
-    NombreComercial NVARCHAR(200) NOT NULL DEFAULT 'NURFA ESSENCIAL PERFUMERÍA',
+    NombreComercial NVARCHAR(200) NOT NULL DEFAULT 'NURFA ESSENCI PERFUMERÍA',
     RazonSocial NVARCHAR(200) NOT NULL DEFAULT 'INVERSIONES AROMAS DEL CARIBE SRL',
     RNC NVARCHAR(50) NOT NULL DEFAULT '1-31-84920-5',
     Direccion NVARCHAR(500) NULL,
@@ -84,10 +84,15 @@ CREATE TABLE dbo.Productos (
     Descripcion NVARCHAR(MAX) NULL,
     Categoria NVARCHAR(50) NOT NULL DEFAULT 'Damas',
     Costo DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    PorcentajeGanancia DECIMAL(5,2) NOT NULL DEFAULT 0.00,
     PrecioVenta DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     StockActual INT NOT NULL DEFAULT 0,
     StockMinimo INT NOT NULL DEFAULT 4,
-    ImagenUrl NVARCHAR(1000) NULL,
+    ImagenesUrls NVARCHAR(1000) NULL,
+    Dicans BIT NOT NULL DEFAULT 0,
+    Mililitros INT NOT NULL DEFAULT 0,
+    MililitrosDisponibles INT NOT NULL DEFAULT 0,
+    PrecioPorMl DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     Activo BIT NOT NULL DEFAULT 1,
     FechaCreacion DATETIME NOT NULL DEFAULT GETDATE(),
     FechaActualizacion DATETIME NULL,
@@ -112,12 +117,12 @@ GO
 
 CREATE TABLE dbo.ConfiguracionFactura (
     Id INT IDENTITY(1,1) NOT NULL,
-    TituloTicket NVARCHAR(200) NOT NULL DEFAULT 'NURFA ESSENCIAL PERFUMERÍA',
+    TituloTicket NVARCHAR(200) NOT NULL DEFAULT 'NURFA ESSENCI PERFUMERÍA',
     MensajeAgradecimiento NVARCHAR(500) NOT NULL DEFAULT '¡GRACIAS POR PREFERIRNOS!',
     MensajeGarantia NVARCHAR(500) NOT NULL DEFAULT 'Conserve este ticket para fines de garantía.',
     MensajePolitica NVARCHAR(500) NOT NULL DEFAULT 'No se aceptan devoluciones en perfumes destapados o sin su celofán original.',
     MensajePie NVARCHAR(500) NULL,
-    RedSocial NVARCHAR(100) NULL DEFAULT '@nurfaessencialperfumeria',
+    RedSocial NVARCHAR(100) NULL DEFAULT '@nurfaessenciperfumeria',
     PrefijoFactura NVARCHAR(20) NOT NULL DEFAULT 'FAC',
     AnchoTicketMm INT NOT NULL DEFAULT 80,
     MostrarLogo BIT NOT NULL DEFAULT 1,
@@ -188,6 +193,7 @@ CREATE TABLE dbo.DetalleVentas (
     Cantidad INT NOT NULL DEFAULT 1,
     PrecioUnitario DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     Importe DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    EsDecant BIT NOT NULL DEFAULT 0,
     CONSTRAINT PK_DetalleVentas PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_DetalleVentas_Venta FOREIGN KEY (IdVenta) REFERENCES dbo.Ventas(Id) ON DELETE CASCADE,
     CONSTRAINT FK_DetalleVentas_Producto FOREIGN KEY (IdProducto) REFERENCES dbo.Productos(Id),
@@ -237,8 +243,8 @@ GO
 -- Usuario Administrador por defecto (contraseña: Admin123!)
 INSERT INTO dbo.Usuarios (Nombre, Email, PasswordHash, Rol, Permisos, Activo)
 VALUES 
-    ('Administradora Nurfa', 'admin@nurfaessencial.com', '$2b$12$LQv3c1yqBWVHxEg0dY5kdOVwRpQy7y6R9f6n7s2k0j3f8h5a1m4e6', 'ROLE_ADMIN', 'pos.vender,pos.descuentos,inventario.ver,inventario.costos,inventario.editar,caja.movimientos,caja.apertura_cierre,contabilidad.ver,factura.editar,factura.configurar,usuarios.gestionar', 1),
-    ('Cajero Nurfa', 'caja1@nurfaessencial.com', '$2b$12$LQv3c1yqBWVHxEg0dY5kdOVwRpQy7y6R9f6n7s2k0j3f8h5a1m4e6', 'ROLE_CAJERO', 'pos.vender,pos.descuentos,inventario.ver,caja.movimientos', 1);
+    ('Administradora Nurfa', 'admin@nurfaessenci.com', '$2b$12$LQv3c1yqBWVHxEg0dY5kdOVwRpQy7y6R9f6n7s2k0j3f8h5a1m4e6', 'ROLE_ADMIN', 'pos.vender,pos.descuentos,inventario.ver,inventario.costos,inventario.editar,caja.movimientos,caja.apertura_cierre,contabilidad.ver,factura.editar,factura.configurar,usuarios.gestionar', 1),
+    ('Cajero Nurfa', 'caja1@nurfaessenci.com', '$2b$12$LQv3c1yqBWVHxEg0dY5kdOVwRpQy7y6R9f6n7s2k0j3f8h5a1m4e6', 'ROLE_CAJERO', 'pos.vender,pos.descuentos,inventario.ver,caja.movimientos', 1);
 GO
 
 -- Configuración de empresa con datos fiscales del prototipo
@@ -247,13 +253,13 @@ INSERT INTO dbo.ConfiguracionEmpresa (
     NCFSerie, NCFSecuenciaActual, ITBISPorcentaje, MonedaSimbolo, Activo
 )
 VALUES (
-    'NURFA ESSENCIAL PERFUMERÍA',
-    'NURFA ESSENCIAL SRL',
+    'NURFA ESSENCI PERFUMERÍA',
+    'NURFA ESSENCI SRL',
     '1-31-84920-5',
     'Av. Independencia #104, Local 2B',
     'San Pedro de Macorís',
     '(809) 529-4410',
-    'contacto@nurfaessencial.com',
+    'contacto@nurfaessenci.com',
     'B02',
     0,
     18.00,
@@ -268,12 +274,12 @@ INSERT INTO dbo.ConfiguracionFactura (
     MostrarCliente, MostrarNCF, MostrarCodigoBarras, Activo
 )
 VALUES (
-    'NURFA ESSENCIAL PERFUMERÍA',
+    'NURFA ESSENCI PERFUMERÍA',
     '¡GRACIAS POR PREFERIRNOS!',
     'Conserve este ticket para fines de garantía.',
     'No se aceptan devoluciones en perfumes destapados o sin su celofán original.',
-    'Nurfa Essencial Perfumería · Elegancia que se recuerda',
-    '@nurfaessencialperfumeria',
+    'Nurfa Essenci Perfumería · Elegancia que se recuerda',
+    '@nurfaessenciperfumeria',
     'FAC',
     80,
     1, 1, 1, 1, 1, 1, 1

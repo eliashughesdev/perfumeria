@@ -1,4 +1,4 @@
-"""Punto de entrada de la API FastAPI - Nurfa Essencial Perfumería.
+"""Punto de entrada de la API FastAPI - Nurfa Essenci Perfumería.
 Puerto: 8050
 """
 
@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="API del Sistema POS de Nurfa Essencial Perfumería - Backend FastAPI + SQL Server",
+    description="API del Sistema POS de Nurfa Essenci Perfumería - Backend FastAPI + SQL Server",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",

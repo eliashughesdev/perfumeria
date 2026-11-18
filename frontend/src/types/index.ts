@@ -52,10 +52,15 @@ export interface Producto {
   descripcion?: string | null
   categoria: string
   costo?: number | null
+  porcentajeGanancia?: number | null
   precioVenta: number
   stockActual: number
   stockMinimo: number
-  imagenUrl?: string | null
+  imagenesUrls?: string | null  // JSON array of image URLs
+  di_cans?: boolean | null  // field for detailed sales (5ml increments)
+  mililitros?: number | null
+  mililitrosDisponibles?: number | null
+  precioPorMl?: number | null
   activo: boolean
   fechaCreacion?: string
   fechaActualizacion?: string
@@ -70,6 +75,7 @@ export interface DetalleVenta {
   cantidad: number
   precioUnitario: number
   importe: number
+  esDecant?: boolean
 }
 
 export interface Venta {
@@ -221,6 +227,7 @@ export interface InvoiceData {
     nombre: string
     precioUnitario: number
     importe: number
+    esDecant?: boolean
   }>
   totales: {
     subtotal: number

@@ -56,10 +56,10 @@ export function InvoicePreviewModal({ isOpen, onClose }: InvoicePreviewModalProp
   return (
     <div
       id="invoice-preview-modal"
-      className={`fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-50 ${isOpen ? 'flex items-center justify-center p-4' : 'hidden'}`}
+      className={`fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-50 ${isOpen ? 'flex items-center justify-center p-3 sm:p-4' : 'hidden'}`}
     >
-      <div className="bg-slate-200 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-300 flex flex-col max-h-[94vh]">
-        <div className="bg-noir-950 text-white px-5 py-3.5 flex items-center justify-between shrink-0 no-print">
+      <div className="bg-slate-200 rounded-2xl max-w-md w-full overflow-y-auto shadow-2xl border border-slate-300 flex flex-col max-h-[92dvh]">
+        <div className="bg-noir-950 text-white px-4 sm:px-5 py-3.5 flex items-center justify-between shrink-0 no-print">
           <div className="flex items-center gap-2">
             <Printer className="w-4 h-4 text-champagne-400" />
             <div>
@@ -72,7 +72,7 @@ export function InvoicePreviewModal({ isOpen, onClose }: InvoicePreviewModalProp
           </button>
         </div>
 
-        <div className="p-5 overflow-y-auto flex-1 flex justify-center">
+        <div className="p-3 sm:p-5 overflow-y-auto flex-1 flex justify-center">
           {!invoice ? (
             <div className="bg-white w-full max-w-[340px] p-8 shadow-md border border-slate-300 text-center text-slate-500 text-xs">
               No hay datos de factura disponibles.
@@ -90,10 +90,10 @@ export function InvoicePreviewModal({ isOpen, onClose }: InvoicePreviewModalProp
                 <h2 className="font-bold text-base tracking-wider uppercase">{invoice.plantilla.titulo || invoice.empresa.nombre}</h2>
                 <p className="font-semibold">{invoice.empresa.razonSocial}</p>
                 <p>RNC: {invoice.empresa.rnc}</p>
-                <p>{invoice.empresa.direccion || ''}</p>
-                <p>{invoice.empresa.ciudad || ''}, Rep. Dom.</p>
-                <p>Tel: {invoice.empresa.telefono || ''}</p>
-                {invoice.empresa.email && <p>{invoice.empresa.email}</p>}
+                {invoice.empresa.direccion && <p>Dirección: {invoice.empresa.direccion}</p>}
+                {invoice.empresa.ciudad && <p>{invoice.empresa.ciudad}, Rep. Dom.</p>}
+                {invoice.empresa.telefono && <p>Tel.: {invoice.empresa.telefono}</p>}
+                {invoice.empresa.email && <p>Correo: {invoice.empresa.email}</p>}
                 {invoice.empresa.redesSociales && <p>{invoice.empresa.redesSociales}</p>}
               </div>
 
@@ -140,8 +140,13 @@ export function InvoicePreviewModal({ isOpen, onClose }: InvoicePreviewModalProp
                   {invoice.items.map((item, index) => (
                     <div key={`${item.nombre}-${index}`}>
                       <div className="flex gap-1">
-                        <span className="w-10 font-bold">{item.cantidad}x</span>
-                        <span className="flex-1 truncate">{item.nombre}</span>
+                        <span className="w-10 font-bold">
+                          {item.esDecant ? `${item.cantidad}ml` : `${item.cantidad}x`}
+                        </span>
+                        <span className="flex-1 truncate">
+                          {item.nombre}
+                          {item.esDecant && <span className="ml-1 text-[8px] uppercase text-champagne-700">· Decant</span>}
+                        </span>
                         <span className="w-16 text-right font-bold">{money(item.importe)}</span>
                       </div>
                       {invoice.plantilla.mostrarSKU && (
@@ -200,7 +205,7 @@ export function InvoicePreviewModal({ isOpen, onClose }: InvoicePreviewModalProp
           )}
         </div>
 
-        <div className="p-4 bg-white border-t border-slate-200 flex gap-3 shrink-0 no-print">
+        <div className="p-3 sm:p-4 bg-white border-t border-slate-200 flex gap-3 shrink-0 no-print">
           <button
             onClick={() => {
               sessionStorage.removeItem('last_invoice')

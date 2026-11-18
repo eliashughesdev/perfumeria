@@ -99,7 +99,7 @@ export function Sidebar({ currentView, setCurrentView, lowStockCount }: SidebarP
       />
 
       <button
-        className="lg:hidden fixed bottom-4 right-4 z-50 bg-noir-950 text-champagne-300 p-3 rounded-full shadow-xl hover:bg-noir-800 transition"
+        className={`lg:hidden fixed ${currentView === 'pos' ? 'bottom-20' : 'bottom-4'} lg:bottom-4 right-4 z-50 bg-noir-950 text-champagne-300 p-3 rounded-full shadow-xl hover:bg-noir-800 transition`}
         onClick={() => setMobileOpen((open) => !open)}
         aria-label="Abrir menú"
       >

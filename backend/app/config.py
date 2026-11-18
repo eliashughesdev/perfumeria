@@ -8,7 +8,7 @@ from typing import List
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "Nurfa Essencial Perfumería API"
+    APP_NAME: str = "Nurfa Essenci Perfumería API"
     APP_VERSION: str = "1.1.0"
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8050

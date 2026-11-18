@@ -7,15 +7,15 @@ from sqlalchemy.orm import Session
 from app.models import ConfiguracionEmpresa, ConfiguracionFactura, Usuario, Venta
 
 COMPANY_DEFAULTS = {
-    "NombreComercial": "NURFA ESSENCIAL PERFUMERÍA",
-    "RazonSocial": "NURFA ESSENCIAL SRL",
+    "NombreComercial": "NURFA ESSENCI PERFUMERÍA",
+    "RazonSocial": "NURFA ESSENCI SRL",
     "RNC": "1-31-84920-5",
     "Direccion": "Av. Independencia #104, Local 2B",
     "Ciudad": "San Pedro de Macorís",
     "Telefono": "(809) 529-4410",
-    "Email": "contacto@nurfaessencial.com",
-    "SitioWeb": "www.nurfaessencial.com",
-    "RedesSociales": "@nurfaessencialperfumeria",
+    "Email": "contacto@nurfaessenci.com",
+    "SitioWeb": "www.nurfaessenci.com",
+    "RedesSociales": "@nurfaessenciperfumeria",
     "LogoUrl": "/logo.jpeg",
     "NCFSerie": "B02",
     "NCFSecuenciaActual": 0,
@@ -25,12 +25,12 @@ COMPANY_DEFAULTS = {
 }
 
 INVOICE_DEFAULTS = {
-    "TituloTicket": "NURFA ESSENCIAL PERFUMERÍA",
+    "TituloTicket": "NURFA ESSENCI PERFUMERÍA",
     "MensajeAgradecimiento": "¡GRACIAS POR PREFERIRNOS!",
     "MensajeGarantia": "Conserve este ticket para fines de garantía.",
     "MensajePolitica": "No se aceptan devoluciones en perfumes destapados o sin su celofán original.",
-    "MensajePie": "Nurfa Essencial Perfumería · Elegancia que se recuerda",
-    "RedSocial": "@nurfaessencialperfumeria",
+    "MensajePie": "Nurfa Essenci Perfumería · Elegancia que se recuerda",
+    "RedSocial": "@nurfaessenciperfumeria",
     "PrefijoFactura": "FAC",
     "AnchoTicketMm": 80,
     "MostrarLogo": True,
@@ -114,6 +114,7 @@ def build_invoice_payload(db: Session, venta: Venta, cajero: Usuario) -> dict:
                 "nombre": item.NombreProducto,
                 "precio_unitario": float(item.PrecioUnitario),
                 "importe": float(item.Importe),
+                "es_decant": bool(item.EsDecant),
             }
             for item in venta.detalles
         ],

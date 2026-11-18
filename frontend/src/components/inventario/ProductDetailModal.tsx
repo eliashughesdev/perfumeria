@@ -29,7 +29,10 @@ export function ProductDetailModal({
     stockActual: 0,
     stockMinimo: 4,
     costo: 0,
-    imagenUrl: '',
+    imagenesUrls: '',
+    mililitros: 0,
+    diCans: false,
+    precioPorMl: 0,
   })
 
   useEffect(() => {
@@ -41,7 +44,10 @@ export function ProductDetailModal({
       stockActual: product.stockActual,
       stockMinimo: product.stockMinimo,
       costo: product.costo ?? 0,
-      imagenUrl: product.imagenUrl ?? '',
+      imagenesUrls: product.imagenesUrls?.split(",")[0] ?? '',
+      mililitros: product.mililitros ?? 0,
+      diCans: Boolean(product.di_cans),
+      precioPorMl: product.precioPorMl ?? 0,
     })
   }, [product])
 
@@ -59,7 +65,10 @@ export function ProductDetailModal({
         StockActual: form.stockActual,
         StockMinimo: form.stockMinimo,
         ...(canViewCost ? { Costo: form.costo } : {}),
-        ImagenUrl: form.imagenUrl || null,
+        ImagenesUrls: form.imagenesUrls || null,
+        Mililitros: form.mililitros,
+        Dicans: form.diCans,
+        PrecioPorMl: form.precioPorMl,
       } as Partial<Producto>)
       setEditing(false)
     } finally {
@@ -67,15 +76,15 @@ export function ProductDetailModal({
     }
   }
 
-  const displayImage = form.imagenUrl || product.imagenUrl
+  const displayImage = form.imagenesUrls || product.imagenesUrls?.split(",")[0]
 
   return (
     <div
       id="product-detail-modal"
-      className={`fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 ${isOpen ? 'flex items-center justify-center p-4 no-print' : 'hidden no-print'}`}
+      className={`fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 ${isOpen ? 'flex items-center justify-center p-3 sm:p-4 no-print' : 'hidden no-print'}`}
     >
-      <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col">
-        <div className="bg-noir-950 text-white px-6 py-4 flex items-center justify-between shrink-0">
+      <div className="bg-white rounded-2xl max-w-lg w-full overflow-y-auto shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col">
+        <div className="bg-noir-950 text-white px-4 sm:px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded bg-champagne-400/20 text-champagne-300 font-mono text-[11px] font-bold" id="detail-sku">
               {product.sku}
@@ -89,7 +98,7 @@ export function ProductDetailModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-5 overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-5 overflow-y-auto">
           <div className="flex flex-col sm:flex-row gap-5 items-center sm:items-start">
             <div id="detail-image-container" className="w-36 h-36 rounded-2xl shrink-0 overflow-hidden border border-slate-200 shadow-inner flex items-center justify-center bg-gradient-to-br from-champagne-100 to-champagne-200">
               {displayImage ? (
@@ -134,6 +143,12 @@ export function ProductDetailModal({
               {canViewCost && (
                 <p className="text-[11px] text-emerald-700 flex items-center justify-center sm:justify-start gap-1">
                   <TrendingUp className="w-3 h-3" /> Margen actual: {margin.toFixed(1)}%
+                </p>
+              )}
+
+              {product.di_cans && (
+                <p className="text-[11px] text-champagne-700 flex items-center justify-center sm:justify-start gap-1">
+                  Decants: ${(product.precioPorMl ?? 0).toFixed(2)}/ml · {product.mililitrosDisponibles ?? 0} ml disponibles
                 </p>
               )}
             </div>
@@ -208,12 +223,48 @@ export function ProductDetailModal({
                       </label>
                     )}
                   </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <label className="text-[10px] text-slate-500 font-semibold uppercase">
+                      Contenido (ml)
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.mililitros}
+                        onChange={(e) => setForm((current) => ({ ...current, mililitros: parseInt(e.target.value) || 0 }))}
+                        className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-xl text-xs"
+                      />
+                    </label>
+                    <label className="text-[10px] text-slate-500 font-semibold uppercase">
+                      Precio por ml
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        disabled={!form.diCans}
+                        value={form.precioPorMl}
+                        onChange={(e) => setForm((current) => ({ ...current, precioPorMl: parseFloat(e.target.value) || 0 }))}
+                        className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-xl text-xs disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                    </label>
+                  </div>
+                  <label className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.diCans}
+                      onChange={(e) => setForm((current) => ({ ...current, diCans: e.target.checked }))}
+                      className="accent-noir-900"
+                    />
+                    Habilitar Decants
+                    <span className="ml-auto text-[10px] font-normal text-slate-400">
+                      {product.mililitrosDisponibles ?? 0} ml disponibles
+                    </span>
+                  </label>
                   <div>
                     <label className="text-[10px] text-slate-500 font-semibold uppercase">URL de imagen</label>
                     <input
                       type="text"
-                      value={form.imagenUrl}
-                      onChange={(e) => setForm((current) => ({ ...current, imagenUrl: e.target.value }))}
+                      value={form.imagenesUrls}
+                      onChange={(e) => setForm((current) => ({ ...current, imagenesUrls: e.target.value }))}
                       placeholder="https://... o /ruta.jpg"
                       className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-xl text-xs"
                     />

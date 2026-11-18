@@ -34,8 +34,8 @@ class ConfiguracionEmpresa(Base):
     __tablename__ = "ConfiguracionEmpresa"
 
     Id = Column(Integer, primary_key=True, index=True)
-    NombreComercial = Column(String(200), nullable=False, default="NURFA ESSENCIAL PERFUMERÍA")
-    RazonSocial = Column(String(200), nullable=False, default="NURFA ESSENCIAL SRL")
+    NombreComercial = Column(String(200), nullable=False, default="NURFA ESSENCI PERFUMERÍA")
+    RazonSocial = Column(String(200), nullable=False, default="NURFA ESSENCI SRL")
     RNC = Column(String(50), nullable=False, default="1-31-84920-5")
     Direccion = Column(String(500), nullable=True)
     Ciudad = Column(String(100), nullable=True)
@@ -57,12 +57,12 @@ class ConfiguracionFactura(Base):
     __tablename__ = "ConfiguracionFactura"
 
     Id = Column(Integer, primary_key=True, index=True)
-    TituloTicket = Column(String(200), nullable=False, default="NURFA ESSENCIAL PERFUMERÍA")
+    TituloTicket = Column(String(200), nullable=False, default="NURFA ESSENCI PERFUMERÍA")
     MensajeAgradecimiento = Column(String(500), nullable=False, default="¡GRACIAS POR PREFERIRNOS!")
     MensajeGarantia = Column(String(500), nullable=False, default="Conserve este ticket para fines de garantía.")
     MensajePolitica = Column(String(500), nullable=False, default="No se aceptan devoluciones en perfumes destapados o sin su celofán original.")
     MensajePie = Column(String(500), nullable=True)
-    RedSocial = Column(String(100), nullable=True, default="@nurfaessencialperfumeria")
+    RedSocial = Column(String(100), nullable=True, default="@nurfaessenciperfumeria")
     PrefijoFactura = Column(String(20), nullable=False, default="FAC")
     AnchoTicketMm = Column(Integer, nullable=False, default=80)
     MostrarLogo = Column(Boolean, nullable=False, default=True)
@@ -85,10 +85,15 @@ class Producto(Base):
     Descripcion = Column(Text, nullable=True)
     Categoria = Column(String(50), nullable=False, default="Damas", index=True)
     Costo = Column(Numeric(18, 2), nullable=False, default=0.00)
+    PorcentajeGanancia = Column(Numeric(5, 2), nullable=False, default=0.00)
     PrecioVenta = Column(Numeric(18, 2), nullable=False, default=0.00)
     StockActual = Column(Integer, nullable=False, default=0)
     StockMinimo = Column(Integer, nullable=False, default=4)
-    ImagenUrl = Column(String(1000), nullable=True)
+    ImagenesUrls = Column(String(1000), nullable=True)  # JSON array of image URLs
+    Dicans = Column(Boolean, nullable=False, default=False)
+    Mililitros = Column(Integer, nullable=False, default=0)
+    MililitrosDisponibles = Column(Integer, nullable=False, default=0)
+    PrecioPorMl = Column(Numeric(18, 2), nullable=False, default=0.00)
     Activo = Column(Boolean, default=True, nullable=False, index=True)
     FechaCreacion = Column(DateTime, default=datetime.now)
     FechaActualizacion = Column(DateTime, nullable=True)
@@ -99,6 +104,11 @@ class Producto(Base):
     )
 
     detalles_venta = relationship("DetalleVenta", back_populates="producto")
+
+    @property
+    def computed_precio_venta(self):
+        """Calculate price = costo + costo * porcentajeGanancia / 100"""
+        return round(self.Costo * (1 + (self.PorcentajeGanancia or 0) / 100), 2)
 
 
 class Venta(Base):
@@ -143,6 +153,7 @@ class DetalleVenta(Base):
     Cantidad = Column(Integer, nullable=False, default=1)
     PrecioUnitario = Column(Numeric(18, 2), nullable=False, default=0.00)
     Importe = Column(Numeric(18, 2), nullable=False, default=0.00)
+    EsDecant = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
         CheckConstraint("Cantidad > 0", name="CHK_DetalleVentas_Cantidad"),

@@ -53,7 +53,7 @@ def reporte_csv(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter=";")
-    writer.writerow(["Reporte contable Nurfa Essencial"])
+    writer.writerow(["Reporte contable Nurfa Essenci"])
     writer.writerow(["Desde", reporte_data["Desde"], "Hasta", reporte_data["Hasta"]])
     writer.writerow([])
     writer.writerow(["Indicador", "Valor"])

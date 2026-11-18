@@ -1,1 +1,1 @@
-"""Paquete principal de la aplicación backend NURFA ESSENCIAL POS."""
+"""Paquete principal de la aplicación backend NURFA ESSENCI POS."""
